@@ -20,7 +20,7 @@ app.get('/api/webcams', async (req, res) => {
         const offsets = [0, 50, 100, 150, 200, 250, 300, 350, 400, 450];
         
         for (const offset of offsets) {
-            const url = `https://api.windy.com/webcams/api/v3/webcams?limit=50&offset=${offset}&include=location,images`;
+            const url = `https://api.windy.com/webcams/api/v3/webcams?limit=50&offset=${offset}&include=location,images,urls,player`;
             
             const response = await fetch(url, {
                 method: 'GET',
