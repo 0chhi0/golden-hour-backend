@@ -5,14 +5,15 @@ import fetch from 'node-fetch';
 const app = express();
 app.use(cors());
 
+// Nutzt den Key aus den Render-Einstellungen oder den Standard-Key
 const WINDY_KEY = process.env.WINDY_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
 
 app.get('/api/webcams', async (req, res) => {
     try {
-        console.log('📡 Starte API-Abfrage...');
+        console.log('📡 Rufe Windy API v3 ab...');
         
-        // Wir versuchen den modernsten Endpoint zuerst
-        const response = await fetch('https://api.windy.com/webcams/api/v3/webcams?limit=50&include=location,image', {
+        // Korrigierter Endpoint: "images" statt "image"
+        const response = await fetch('https://api.windy.com/webcams/api/v3/webcams?limit=50&include=location,images', {
             headers: { 'x-windy-api-key': WINDY_KEY }
         });
 
@@ -20,15 +21,13 @@ app.get('/api/webcams', async (req, res) => {
         const data = await response.json();
 
         if (status === 200) {
-            // Windy v3 Format Mapping
-            const webcams = data.webcams || [];
-            console.log(`✅ ${webcams.length} Webcams erfolgreich geladen`);
-            return res.json({ webcams: webcams });
+            // Wir senden die Webcams direkt an dein Frontend
+            console.log(`✅ ${data.webcams?.length || 0} Webcams geladen`);
+            return res.json(data);
         } else {
-            // Wenn es schief geht, senden wir den Fehler als Info
-            console.error(`❌ Windy API Fehler: ${status}`);
+            console.error(`❌ API Fehler ${status}:`, data);
             return res.status(status).json({ 
-                error: `Windy API antwortet mit Status ${status}`,
+                error: `Fehler: ${status}`, 
                 details: data,
                 webcams: [] 
             });
@@ -41,5 +40,5 @@ app.get('/api/webcams', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`🌅 Backend aktiv auf Port ${PORT}`);
+    console.log(`🌅 Backend bereit auf Port ${PORT}`);
 });
