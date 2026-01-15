@@ -15,16 +15,15 @@ app.get('/api/webcams', async (req, res) => {
     try {
         let allWebcams = [];
         const limit = 50;
-        const totalPackages = 6; // Deine gewünschten 300 Cams
+        const totalPackages = 6; 
 
         console.log(`🚀 Starte Wiederherstellung: 6 Pakete à 50...`);
 
         for (let i = 0; i < totalPackages; i++) {
             const offset = i * limit;
             
-            // Wir nutzen hier die absolut einfachste URL-Struktur OHNE Kategorien-Pfad
-            // Das 'include' Feld ist wichtig für die Bilder und den Player
-            const url = `https://api.windy.com/api/webcams/v3/list?limit=${limit}&offset=${offset}&include=location,images,player,urls`;
+            // Radikal vereinfachte URL - nur das Nötigste, um 404 zu vermeiden
+            const url = `https://api.windy.com/api/webcams/v3/list?limit=${limit}&offset=${offset}`;
 
             const response = await fetch(url, {
                 method: 'GET',
@@ -35,21 +34,18 @@ app.get('/api/webcams', async (req, res) => {
             });
 
             if (!response.ok) {
-                console.error(`❌ Paket ${i + 1} (Offset ${offset}) fehlgeschlagen: Status ${response.status}`);
+                console.error(`❌ Paket ${i + 1} fehlgeschlagen: Status ${response.status}`);
                 continue; 
             }
 
             const data = await response.json();
             
             if (data.webcams && data.webcams.length > 0) {
-                // Wir filtern HIER im Code, nicht in der API-URL
-                // Das stellt sicher, dass wir nur Cams mit Video/Live-Inhalt nehmen
+                // Filterung auf Video (Live/Day) direkt hier im Code
                 const videoOnly = data.webcams.filter(w => 
                     w.player && (w.player.live || w.player.day)
                 );
-                
                 allWebcams = allWebcams.concat(videoOnly);
-                console.log(`✅ Paket ${i + 1}: ${videoOnly.length} Video-Cams hinzugefügt.`);
             }
         }
 
@@ -57,8 +53,8 @@ app.get('/api/webcams', async (req, res) => {
         res.json({ webcams: allWebcams });
 
     } catch (error) {
-        console.error('❌ Serverfehler:', error);
-        res.status(500).json({ error: 'Interner Serverfehler' });
+        console.error('❌ Fehler:', error);
+        res.status(500).json({ error: 'Serverfehler' });
     }
 });
 const PORT = process.env.PORT || 10000;
