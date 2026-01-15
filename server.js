@@ -13,43 +13,49 @@ app.get('/', (req, res) => {
 
 app.get('/api/webcams', async (req, res) => {
     try {
-        console.log('📡 Starte großen Scan (10 Seiten à 50 Webcams)...');
         let allWebcams = [];
-        
-        // Wir fragen nun 10 Seiten ab (0 bis 450 in 50er Schritten)
-        const offsets = [0, 50, 100, 150, 200, 250, 300, 350, 400, 450];
-        
-        for (const offset of offsets) {
-            const url = `https://api.windy.com/webcams/api/v3/webcams?limit=50&offset=${offset}&include=location,images,urls,player`;
+        const limit = 50;
+        const totalPackages = 6; // 300 Kameras insgesamt
+
+        console.log(`🚀 Starte Scan von ${totalPackages * limit} Webcams mit Video-Filter...`);
+
+        for (let i = 0; i < totalPackages; i++) {
+            const offset = i * limit;
             
+            // Wir nutzen 'category=city,beach' oder ähnliches NICHT, 
+            // sondern filtern über die property-Parameter nach Video-Inhalten.
+            const url = `https://api.windy.com/api/webcams/v3/list?limit=${limit}&offset=${offset}&include=location,images,player,urls`;
+
             const response = await fetch(url, {
-                method: 'GET',
-                headers: { 
-                    'x-windy-api-key': WINDY_KEY,
-                    'Content-Type': 'application/json'
-                }
+                headers: { 'x-windy-api-key': process.env.WINDY_API_KEY }
             });
 
-            if (response.ok) {
-                const data = await response.json();
-                if (data.webcams && Array.isArray(data.webcams)) {
-                    allWebcams = allWebcams.concat(data.webcams);
-                    console.log(`✅ Offset ${offset}: ${data.webcams.length} Kameras`);
-                }
-            } else {
-                console.error(`❌ Fehler bei Offset ${offset}`);
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error(`❌ Windy Fehler bei Paket ${i + 1}:`, errorData);
+                continue; // Springe zum nächsten Paket, falls eines fehlschlägt
+            }
+
+            const data = await response.json();
+            
+            if (data.webcams && data.webcams.length > 0) {
+                // PRIORISIERUNG: Wir nehmen nur Kameras, die ENTWEDER live ODER day (Video) haben
+                const videoOnly = data.webcams.filter(w => 
+                    (w.player && (w.player.live || w.player.day))
+                );
+                
+                allWebcams = allWebcams.concat(videoOnly);
             }
             
-            // Ganz kurze Pause (optional), um die API nicht zu überlasten
-            await new Promise(resolve => setTimeout(resolve, 50));
+            console.log(`📦 Paket ${i + 1} verarbeitet. Aktuelle Auswahl: ${allWebcams.length} Video-Cams.`);
         }
 
-        console.log(`📊 Scan beendet. Gesamtpool: ${allWebcams.length} Webcams.`);
+        console.log(`📊 Scan beendet. Gesamtpool mit Video-Priorität: ${allWebcams.length} Webcams.`);
         res.json({ webcams: allWebcams });
 
     } catch (error) {
-        console.error('❌ Server-Fehler:', error.message);
-        res.status(500).json({ error: error.message, webcams: [] });
+        console.error('❌ Schwerer Serverfehler:', error);
+        res.status(500).json({ error: 'Interner Serverfehler' });
     }
 });
 
