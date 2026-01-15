@@ -14,13 +14,17 @@ app.get('/', (req, res) => {
 
 app.get('/api/webcams', async (req, res) => {
     try {
-        console.log('📡 Starte Scan über stabilen Pfad (10 Seiten)...');
         let allWebcams = [];
-        const offsets = [0, 50, 100, 150, 200, 250, 300, 350, 400, 450];
-        
-        for (const offset of offsets) {
-            // Wir nutzen EXAKT deine funktionierende URL
-            const url = `https://api.windy.com/webcams/api/v3/webcams?limit=50&offset=${offset}&include=location,images,urls,player`;
+        const limit = 50;
+        const totalPackages = 6; // 6 Pakete = 300 Kameras Reichweite
+
+        console.log(`🚀 Starte priorisierten Scan: 6 Pakete mit Filter property=live,day...`);
+
+        for (let i = 0; i < totalPackages; i++) {
+            const offset = i * limit;
+            
+            // PRIORISIERUNG: &property=live,day sorgt dafür, dass nur Kameras mit Video geladen werden
+            const url = `https://api.windy.com/webcams/api/v3/webcams?limit=${limit}&offset=${offset}&property=live,day&include=location,images,urls,player`;
             
             const response = await fetch(url, {
                 method: 'GET',
@@ -33,26 +37,23 @@ app.get('/api/webcams', async (req, res) => {
             if (response.ok) {
                 const data = await response.json();
                 if (data.webcams && Array.isArray(data.webcams)) {
-                    // WICHTIG: Wir filtern hier nach Video-Inhalt, damit die Markerfarben im Frontend stimmen
-                    const filtered = data.webcams.filter(w => 
-                        w.player && (w.player.live || w.player.day)
-                    );
-                    allWebcams = allWebcams.concat(filtered);
-                    console.log(`✅ Offset ${offset}: ${filtered.length} Video-Kameras gefunden`);
+                    allWebcams = allWebcams.concat(data.webcams);
+                    console.log(`✅ Paket ${i + 1} (Offset ${offset}): ${data.webcams.length} Video-Kameras erhalten.`);
                 }
             } else {
-                console.error(`❌ Fehler bei Offset ${offset}: Status ${response.status}`);
+                console.error(`❌ Fehler bei Paket ${i + 1}: Status ${response.status}`);
             }
             
+            // Kurze Pause zur API-Schonung
             await new Promise(resolve => setTimeout(resolve, 50));
         }
 
-        console.log(`📊 Scan beendet. Gesamtpool: ${allWebcams.length} Webcams.`);
+        console.log(`📊 Scan beendet. Gesamtpool: ${allWebcams.length} reine Video-Webcams.`);
         res.json({ webcams: allWebcams });
 
     } catch (error) {
         console.error('❌ Server-Fehler:', error.message);
-        res.status(500).json({ error: error.message, webcams: [] });
+        res.status(500).json({ error: error.message });
     }
 });
 
