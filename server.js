@@ -8,22 +8,18 @@ app.use(cors());
 // Nutzt den Key aus den Einstellungen oder den Fallback
 const WINDY_KEY = process.env.WINDY_API_KEY || process.env.WINDY_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
 
-app.get('/', (req, res) => {
-    res.send('🌅 Golden Hour Backend aktiv - Reichweite: 500 Webcams (Video-Filter aktiv)');
-});
-
 app.get('/api/webcams', async (req, res) => {
     try {
         let allWebcams = [];
         const limit = 50;
-        const totalPackages = 6; // 6 Pakete = 300 Kameras Reichweite
+        const totalPackages = 10; // Erhöht auf 10 Pakete (500 Cams Reichweite)
 
-        console.log(`🚀 Starte priorisierten Scan: 6 Pakete mit Filter property=live,day...`);
+        console.log(`🚀 Starte priorisierten Scan: ${totalPackages} Pakete mit Filter property=live,day...`);
 
         for (let i = 0; i < totalPackages; i++) {
             const offset = i * limit;
             
-            // PRIORISIERUNG: &property=live,day sorgt dafür, dass nur Kameras mit Video geladen werden
+            // Nutzt den stabilen Pfad und den Eigenschafts-Filter für Video-Priorisierung
             const url = `https://api.windy.com/webcams/api/v3/webcams?limit=${limit}&offset=${offset}&property=live,day&include=location,images,urls,player`;
             
             const response = await fetch(url, {
@@ -41,6 +37,7 @@ app.get('/api/webcams', async (req, res) => {
                     console.log(`✅ Paket ${i + 1} (Offset ${offset}): ${data.webcams.length} Video-Kameras erhalten.`);
                 }
             } else {
+                // Falls ein Paket fehlschlägt (z.B. 404), wird es geloggt, aber der Scan geht weiter
                 console.error(`❌ Fehler bei Paket ${i + 1}: Status ${response.status}`);
             }
             
