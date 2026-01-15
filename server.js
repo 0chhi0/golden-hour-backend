@@ -5,57 +5,47 @@ import fetch from 'node-fetch';
 const app = express();
 app.use(cors());
 
+// Wir nutzen direkt den Key, der in deinen Environment Variables steht
 const ACTUAL_KEY = process.env.WINDY_API_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
 
-let webcamCache = null;
-let lastFetchTime = 0;
-const CACHE_DURATION = 15 * 60 * 1000;
+app.get('/', (req, res) => {
+    res.send('🌅 Golden Hour Backend - Einfacher Modus aktiv');
+});
 
 app.get('/api/webcams', async (req, res) => {
     try {
-        let allWebcams = [];
-        const limit = 50;
-        const totalPackages = 6; 
+        console.log("🚀 Rufe Webcams im Standard-Modus ab...");
 
-        console.log(`🚀 Starte Wiederherstellung: 6 Pakete à 50...`);
+        // Die absolut einfachste URL-Struktur ohne Offset-Schleifen
+        const url = `https://api.windy.com/api/webcams/v3/list?limit=50&include=location,images,player,urls`;
 
-        for (let i = 0; i < totalPackages; i++) {
-            const offset = i * limit;
-            
-            // Radikal vereinfachte URL - nur das Nötigste, um 404 zu vermeiden
-            const url = `https://api.windy.com/api/webcams/v3/list?limit=${limit}&offset=${offset}`;
-
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: { 
-                    'x-windy-api-key': ACTUAL_KEY,
-                    'Accept': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                console.error(`❌ Paket ${i + 1} fehlgeschlagen: Status ${response.status}`);
-                continue; 
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: { 
+                'x-windy-api-key': ACTUAL_KEY,
+                'Accept': 'application/json'
             }
+        });
 
-            const data = await response.json();
-            
-            if (data.webcams && data.webcams.length > 0) {
-                // Filterung auf Video (Live/Day) direkt hier im Code
-                const videoOnly = data.webcams.filter(w => 
-                    w.player && (w.player.live || w.player.day)
-                );
-                allWebcams = allWebcams.concat(videoOnly);
-            }
+        if (!response.ok) {
+            console.error(`❌ API Fehler: Status ${response.status}`);
+            return res.status(response.status).json({ error: "Windy API nicht erreichbar" });
         }
 
-        console.log(`📊 Fertig! Gesamtpool: ${allWebcams.length} Webcams.`);
-        res.json({ webcams: allWebcams });
+        const data = await response.json();
+        
+        // Wir filtern nur noch im Code, um sicherzustellen, dass die API nicht durch Parameter verwirrt wird
+        const webcams = data.webcams || [];
+        const videoOnly = webcams.filter(w => w.player && (w.player.live || w.player.day));
+
+        console.log(`✅ Erfolg! ${videoOnly.length} Video-Webcams geladen.`);
+        res.json({ webcams: videoOnly });
 
     } catch (error) {
-        console.error('❌ Fehler:', error);
-        res.status(500).json({ error: 'Serverfehler' });
+        console.error('❌ Serverfehler:', error);
+        res.status(500).json({ error: 'Interner Serverfehler' });
     }
 });
+
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`🚀 Backend bereit`));
+app.listen(PORT, () => console.log(`🚀 Backend bereit auf Port ${PORT}`));
