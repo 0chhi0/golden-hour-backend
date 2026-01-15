@@ -19,44 +19,45 @@ app.get('/api/webcams', async (req, res) => {
 
     try {
         let allWebcams = [];
-        // Wir fragen 6 verschiedene Kategorien ab statt nur Offset
+        // Wir nutzen den 'list'-Endpunkt mit Kategorien als Filter-Parameter
         const categories = ['city', 'beach', 'mountain', 'pool', 'traffic', 'water'];
         
-        console.log(`🚀 Starte Kategorie-Scan (6 Gruppen)...`);
+        console.log(`🚀 Starte robusten Filter-Scan...`);
 
         for (const cat of categories) {
-            // Geänderter Endpunkt: /list/category=${cat} statt nur /list
-            const url = `https://api.windy.com/api/webcams/v3/list/category=${cat}?limit=50&include=location,images,player,urls`;
+            // Geänderte URL-Struktur: /list?category=${cat}
+            // Dies ist oft kompatibler als der Pfad-Einschub /list/category=...
+            const url = `https://api.windy.com/api/webcams/v3/list?category=${cat}&limit=50&include=location,images,player,urls`;
 
             const response = await fetch(url, {
                 method: 'GET',
-                headers: { 'x-windy-api-key': ACTUAL_KEY }
+                headers: { 
+                    'x-windy-api-key': ACTUAL_KEY,
+                    'Accept': 'application/json'
+                }
             });
 
             if (!response.ok) {
-                console.error(`❌ Fehler bei Kategorie ${cat}: Status ${response.status}`);
+                console.error(`❌ Fehler bei ${cat}: ${response.status}`);
                 continue; 
             }
 
             const data = await response.json();
             if (data.webcams) {
-                // Nur Kameras mit Video-Player (deine Priorisierung)
                 const videoOnly = data.webcams.filter(w => w.player && (w.player.live || w.player.day));
                 allWebcams = allWebcams.concat(videoOnly);
             }
         }
 
-        // Dubletten entfernen (falls eine Cam in zwei Kategorien ist)
         webcamCache = Array.from(new Map(allWebcams.map(w => [w.webcamId, w])).values());
         lastFetchTime = now;
-
-        console.log(`📊 Scan beendet. ${webcamCache.length} Video-Webcams gefunden.`);
         res.json({ webcams: webcamCache });
 
     } catch (error) {
+        console.error('❌ Schwerer Fehler:', error);
         res.status(500).json({ error: 'Serverfehler' });
     }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`🚀 Backend aktiv auf Port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Backend bereit`));
