@@ -13,37 +13,52 @@ const CACHE_DURATION = 15 * 60 * 1000;
 
 app.get('/api/webcams', async (req, res) => {
     try {
-        console.log(`🚀 Versuche globalen Basis-Scan...`);
+        let allWebcams = [];
+        const limit = 50;
+        const totalPackages = 6; // Deine gewünschten 300 Cams
 
-        // Wir nutzen den absolut einfachsten v3 Endpunkt ohne Offset-Spielereien
-        const url = `https://api.windy.com/api/webcams/v3/list?limit=100&include=location,images,player,urls`;
+        console.log(`🚀 Starte Wiederherstellung: 6 Pakete à 50...`);
 
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: { 
-                'x-windy-api-key': ACTUAL_KEY,
-                'Accept': 'application/json'
+        for (let i = 0; i < totalPackages; i++) {
+            const offset = i * limit;
+            
+            // Wir nutzen hier die absolut einfachste URL-Struktur OHNE Kategorien-Pfad
+            // Das 'include' Feld ist wichtig für die Bilder und den Player
+            const url = `https://api.windy.com/api/webcams/v3/list?limit=${limit}&offset=${offset}&include=location,images,player,urls`;
+
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: { 
+                    'x-windy-api-key': ACTUAL_KEY,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                console.error(`❌ Paket ${i + 1} (Offset ${offset}) fehlgeschlagen: Status ${response.status}`);
+                continue; 
             }
-        });
 
-        if (!response.ok) {
-            // Wenn das auch 404 gibt, ist der Key definitiv nicht für Webcams v3
-            console.error(`❌ Basis-Scan fehlgeschlagen: Status ${response.status}`);
-            return res.status(response.status).json({ error: "API Key abgelehnt" });
+            const data = await response.json();
+            
+            if (data.webcams && data.webcams.length > 0) {
+                // Wir filtern HIER im Code, nicht in der API-URL
+                // Das stellt sicher, dass wir nur Cams mit Video/Live-Inhalt nehmen
+                const videoOnly = data.webcams.filter(w => 
+                    w.player && (w.player.live || w.player.day)
+                );
+                
+                allWebcams = allWebcams.concat(videoOnly);
+                console.log(`✅ Paket ${i + 1}: ${videoOnly.length} Video-Cams hinzugefügt.`);
+            }
         }
 
-        const data = await response.json();
-        let webcams = data.webcams || [];
-
-        // Filter für Video (Live oder Day)
-        const videoOnly = webcams.filter(w => w.player && (w.player.live || w.player.day));
-
-        console.log(`✅ Erfolg! ${videoOnly.length} Video-Webcams gefunden.`);
-        res.json({ webcams: videoOnly });
+        console.log(`📊 Fertig! Gesamtpool: ${allWebcams.length} Webcams.`);
+        res.json({ webcams: allWebcams });
 
     } catch (error) {
-        console.error('❌ Fehler:', error);
-        res.status(500).json({ error: 'Serverfehler' });
+        console.error('❌ Serverfehler:', error);
+        res.status(500).json({ error: 'Interner Serverfehler' });
     }
 });
 const PORT = process.env.PORT || 10000;
