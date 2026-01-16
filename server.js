@@ -11,47 +11,47 @@ const WINDY_KEY = process.env.WINDY_API_KEY || process.env.WINDY_KEY || 'z56DtDa
 app.get('/api/webcams', async (req, res) => {
     try {
         let allWebcams = [];
-        // Deine verifizierten Kategorien aus der PowerShell
-        const categories = ['beach', 'city', 'coast', 'forest', 'lake', 'landscape', 'mountain', 'river', 'village'];
+        const categories = ['beach', 'city', 'mountain', 'lake', 'landscape']; // Fokus auf Top-Kategorien
         
-        console.log(`🚀 Starte Smart-Scan für ${categories.length} Kategorien...`);
+        // Definition von Bounding Boxes für eine globale Verteilung
+        // [nord, west, süd, ost]
+        const regions = [
+            { name: 'Europa', box: '71, -10, 35, 30' },
+            { name: 'Nordamerika', box: '72, -170, 15, -50' },
+            { name: 'Asien/Ozeanien', box: '75, 60, -45, 180' },
+            { name: 'Südamerika/Afrika', box: '35, -90, -55, 60' }
+        ];
 
-        for (const cat of categories) {
-            // Wir scannen 3 Pakete pro Kategorie (Offset 0, 50, 100)
-            for (let offset of [0, 50, 100]) {
-                // Ohne property-Filter, um auch Cams ohne Boolean-Flag zu finden
-                const url = `https://api.windy.com/webcams/api/v3/webcams?limit=50&offset=${offset}&category=${cat}&include=location,images,urls,player`;
+        console.log(`🌍 Starte globalen Scan für ${regions.length} Regionen...`);
+
+        for (const region of regions) {
+            for (const cat of categories) {
+                // Abfrage pro Region UND Kategorie
+                const url = `https://api.windy.com/webcams/api/v3/webcams?limit=30&category=${cat}&area=${region.box}&include=location,images,urls,player`;
                 
                 const response = await fetch(url, {
-                    method: 'GET',
-                    headers: { 'x-windy-api-key': WINDY_KEY }
+                    headers: { 'x-windy-api-key': WIND_KEY }
                 });
 
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.webcams && Array.isArray(data.webcams)) {
-                        // SMART-FILTER: Findet Cams via Flags ODER via URL-Strings
+                    if (data.webcams) {
+                        // Dein bewährter Smart-Filter für Video-URLs
                         const validVideos = data.webcams.filter(w => {
                             if (!w.player) return false;
-                            const hasLive = w.player.live === true || (typeof w.player.live === 'string' && w.player.live.length > 0);
-                            const hasDay = w.player.day === true || (typeof w.player.day === 'string' && w.player.day.length > 0);
-                            return hasLive || hasDay;
+                            return (w.player.live || w.player.day);
                         });
                         allWebcams = allWebcams.concat(validVideos);
                     }
                 }
             }
-            console.log(`✅ Kategorie ${cat} verarbeitet.`);
-            await new Promise(resolve => setTimeout(resolve, 50));
+            console.log(`✅ Region ${region.name} abgeschlossen.`);
         }
 
         const uniqueWebcams = Array.from(new Map(allWebcams.map(w => [w.webcamId, w])).values());
-        console.log(`📊 Scan beendet. Gesamtpool: ${uniqueWebcams.length} Webcams.`);
         res.json({ webcams: uniqueWebcams });
 
     } catch (error) {
-        // Loggt den Fehler präzise im Render-Dashboard
-        console.error('❌ Fehler im Backend:', error.message);
         res.status(500).json({ error: error.message });
     }
 });
