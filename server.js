@@ -11,48 +11,40 @@ const WINDY_KEY = process.env.WINDY_API_KEY || process.env.WINDY_KEY || 'z56DtDa
 app.get('/api/webcams', async (req, res) => {
     try {
         let allWebcams = [];
-        // Deine exakte Auswahl aus dem PowerShell-Test
-        const categories = [
-            'beach', 'city', 'coast', 'forest', 'lake', 
-            'landscape', 'mountain', 'river', 'village'
-        ];
+        const categories = ['beach', 'city', 'coast', 'forest', 'lake', 'landscape', 'mountain', 'river', 'village'];
         
-        console.log(`🚀 Starte gezielten Kategorien-Scan (${categories.length} Gruppen)...`);
+        console.log(`🚀 Starte Deep-Scan für ${categories.length} Kategorien...`);
 
         for (const cat of categories) {
-            // Wir nutzen den stabilen Pfad mit Kategorie- und Video-Filter
-            const url = `https://api.windy.com/webcams/api/v3/webcams?limit=50&category=${cat}&property=live,day&include=location,images,urls,player`;
-            
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: { 
-                    'x-windy-api-key': WINDY_KEY,
-                    'Content-Type': 'application/json'
-                }
-            });
+            // Wir laden pro Kategorie 2 Pakete (Offset 0 und 50), um mehr als nur 50 Cams zu erhalten
+            for (let offset of [0, 50]) {
+                const url = `https://api.windy.com/webcams/api/v3/webcams?limit=50&offset=${offset}&category=${cat}&property=live,day&include=location,images,urls,player`;
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: { 'x-windy-api-key': WINDY_KEY }
+                });
 
-            if (response.ok) {
-                const data = await response.json();
-                if (data.webcams && Array.isArray(data.webcams)) {
-                    allWebcams = allWebcams.concat(data.webcams);
-                    console.log(`✅ ${cat}: ${data.webcams.length} Video-Kameras gefunden.`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.webcams) {
+                        allWebcams = allWebcams.concat(data.webcams);
+                    }
                 }
-            } else {
-                console.error(`❌ Fehler bei Kategorie ${cat}: Status ${response.status}`);
             }
-            
-            // Kurze Pause zwischen den Abfragen
+            console.log(`✅ Kategorie ${cat} verarbeitet.`);
+            // Kurze Pause, um das API-Limit nicht zu sprengen
             await new Promise(resolve => setTimeout(resolve, 50));
         }
 
-        // Dubletten entfernen (falls eine Cam in 'coast' und 'beach' gelistet ist)
+        // Dubletten entfernen (wichtig, da eine Cam in 'beach' und 'coast' sein kann)
         const uniqueWebcams = Array.from(new Map(allWebcams.map(w => [w.webcamId, w])).values());
 
-        console.log(`📊 Scan beendet. Gesamt: ${uniqueWebcams.length} Webcams in den Ziel-Kategorien.`);
+        console.log(`📊 Scan beendet. Gesamtpool: ${uniqueWebcams.length} Video-Webcams.`);
         res.json({ webcams: uniqueWebcams });
 
     } catch (error) {
-        console.error('❌ Server-Fehler:', error.message);
+        console.error('❌ Fehler:', error.message);
         res.status(500).json({ error: error.message });
     }
 });
