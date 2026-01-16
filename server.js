@@ -8,7 +8,7 @@ app.use(cors());
 
 const WINDY_KEY = process.env.WINDY_API_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
 
-// Vollständige World Data Matrix - alle Länder der Welt mit Längengraden
+// Vollständige World Data Matrix
 const worldData = [
     // Nordamerika
     { id: 'US', lon: -95.7 }, { id: 'CA', lon: -106.3 }, { id: 'MX', lon: -102.5 },
@@ -119,8 +119,8 @@ const worldData = [
     { id: 'NA', lon: 18.5 }, { id: 'LS', lon: 28.2 }, { id: 'SZ', lon: 31.5 }
 ];
 
-// Funktion um alle Webcams für ein Land zu holen
-async function fetchAllWebcamsForCountry(country) {
+// Funktion um alle Webcams für ein Land zu holen (mit Retry-Logik)
+async function fetchAllWebcamsForCountry(country, retries = 3) {
     const allCamsForCountry = [];
     let offset = 0;
     const limit = 50;
@@ -128,44 +128,96 @@ async function fetchAllWebcamsForCountry(country) {
     
     try {
         while (hasMore) {
-            const response = await fetch(
-                `https://api.windy.com/webcams/api/v3/webcams?limit=${limit}&offset=${offset}&country=${country.id}&include=location,player`,
-                { headers: { 'x-windy-api-key': WINDY_KEY } }
-            );
+            let success = false;
+            let attempt = 0;
             
-            if (!response.ok) {
-                console.log(`⚠️ Land ${country.id}: API Fehler ${response.status}`);
-                break;
+            // Retry-Logik für fehlgeschlagene Requests
+            while (!success && attempt < retries) {
+                try {
+                    const response = await fetch(
+                        `https://api.windy.com/webcams/api/v3/webcams?limit=${limit}&offset=${offset}&country=${country.id}&include=location,player`,
+                        { 
+                            headers: { 'x-windy-api-key': WINDY_KEY },
+                            timeout: 10000 // 10 Sekunden Timeout
+                        }
+                    );
+                    
+                    if (!response.ok) {
+                        if (response.status === 429) { // Rate Limit
+                            console.log(`⏸️ Rate Limit erreicht für ${country.id}, warte 2 Sekunden...`);
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            attempt++;
+                            continue;
+                        }
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    const cams = data.webcams || [];
+                    
+                    if (cams.length === 0) {
+                        hasMore = false;
+                    } else {
+                        allCamsForCountry.push(...cams);
+                        offset += limit;
+                        
+                        if (cams.length < limit) {
+                            hasMore = false;
+                        }
+                    }
+                    
+                    success = true;
+                    
+                } catch (err) {
+                    attempt++;
+                    if (attempt >= retries) {
+                        console.log(`❌ ${country.id}: Fehler nach ${retries} Versuchen - ${err.message}`);
+                        hasMore = false;
+                    } else {
+                        console.log(`🔄 ${country.id}: Retry ${attempt}/${retries}`);
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                }
             }
             
-            const data = await response.json();
-            const cams = data.webcams || [];
-            
-            if (cams.length === 0) {
-                hasMore = false;
-            } else {
-                allCamsForCountry.push(...cams);
-                offset += limit;
-                
-                // Wenn weniger als limit zurückkommen, gibt es keine weiteren Seiten
-                if (cams.length < limit) {
-                    hasMore = false;
-                }
-                
-                // Kleine Pause zwischen Requests
-                await new Promise(resolve => setTimeout(resolve, 100));
+            if (hasMore) {
+                // Kleine Pause zwischen Seiten
+                await new Promise(resolve => setTimeout(resolve, 150));
             }
         }
         
         if (allCamsForCountry.length > 0) {
-            console.log(`📍 ${country.id}: ${allCamsForCountry.length} Cams gefunden (${Math.ceil(allCamsForCountry.length / limit)} Seiten)`);
+            console.log(`✅ ${country.id}: ${allCamsForCountry.length} Cams`);
         }
         
         return allCamsForCountry;
     } catch (err) {
-        console.log(`❌ Fehler bei Land ${country.id}:`, err.message);
+        console.log(`❌ Kritischer Fehler bei ${country.id}:`, err.message);
         return [];
     }
+}
+
+// Batch-Verarbeitung: Verarbeite N Länder parallel
+async function processBatch(countries, batchSize = 5) {
+    const results = [];
+    
+    for (let i = 0; i < countries.length; i += batchSize) {
+        const batch = countries.slice(i, i + batchSize);
+        console.log(`📦 Batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(countries.length / batchSize)}: Verarbeite ${batch.map(c => c.id).join(', ')}`);
+        
+        const batchResults = await Promise.all(
+            batch.map(country => fetchAllWebcamsForCountry(country))
+        );
+        
+        results.push(...batchResults);
+        
+        // Pause zwischen Batches
+        if (i + batchSize < countries.length) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+    
+    return results;
 }
 
 app.get('/api/webcams', async (req, res) => {
@@ -177,35 +229,29 @@ app.get('/api/webcams', async (req, res) => {
             return (altitude >= -15 && altitude <= 15);
         });
         
-        console.log(`📡 Stapel-Scan: Starte SEQUENTIELLE Abfrage für ${targetCountries.length} Länder...`);
-        console.log(`⏱️ Erwartete Dauer: ~${Math.ceil(targetCountries.length * 0.5)} Sekunden`);
+        console.log(`\n📡 Golden Hour Scan gestartet`);
+        console.log(`🌍 Gefilterte Länder: ${targetCountries.length}`);
+        console.log(`⚡ Batch-Modus: 5 Länder parallel`);
+        console.log(`⏱️ Erwartete Dauer: ~${Math.ceil(targetCountries.length / 5 * 2)} Sekunden\n`);
         
-        const allWebcams = [];
-        let processedCount = 0;
+        const startTime = Date.now();
         
-        // SEQUENTIELL durchgehen (nicht parallel!)
-        for (const country of targetCountries) {
-            processedCount++;
-            console.log(`[${processedCount}/${targetCountries.length}] Verarbeite ${country.id}...`);
-            
-            const cams = await fetchAllWebcamsForCountry(country);
-            allWebcams.push(...cams);
-            
-            // Status-Update alle 10 Länder
-            if (processedCount % 10 === 0) {
-                console.log(`📊 Zwischenstand: ${allWebcams.length} Webcams von ${processedCount} Ländern`);
-            }
-        }
+        // Batch-Verarbeitung
+        const results = await processBatch(targetCountries, 5);
+        const allWebcams = results.flat();
         
         // Dubletten entfernen
         const uniqueWebcams = Array.from(
             new Map(allWebcams.map(w => [w.webcamId, w])).values()
         );
         
-        console.log(`✅ SCAN BEENDET!`);
-        console.log(`📊 Gesamt: ${uniqueWebcams.length} einzigartige Webcams`);
-        console.log(`📍 Aus: ${targetCountries.length} Ländern`);
-        console.log(`📈 Durchschnitt: ${Math.round(uniqueWebcams.length / targetCountries.length)} pro Land`);
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+        
+        console.log(`\n✅ SCAN ABGESCHLOSSEN!`);
+        console.log(`⏱️ Dauer: ${duration}s`);
+        console.log(`📊 Ergebnis: ${uniqueWebcams.length} einzigartige Webcams`);
+        console.log(`🌍 Aus: ${targetCountries.length} Ländern`);
+        console.log(`📈 Durchschnitt: ${Math.round(uniqueWebcams.length / targetCountries.length)} pro Land\n`);
         
         res.json({ 
             webcams: uniqueWebcams,
@@ -213,15 +259,16 @@ app.get('/api/webcams', async (req, res) => {
                 totalCountries: targetCountries.length,
                 totalWebcams: uniqueWebcams.length,
                 averagePerCountry: Math.round(uniqueWebcams.length / targetCountries.length),
+                durationSeconds: parseFloat(duration),
                 timestamp: new Date().toISOString()
             }
         });
         
     } catch (error) {
-        console.error("Kritischer Backend-Fehler:", error);
+        console.error("❌ Kritischer Backend-Fehler:", error);
         res.status(500).json({ error: error.message });
     }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`🚀 Stapel-Backend v7 (Sequentiell + Debug) aktiv auf Port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Golden Hour Backend v8 (Optimiert) läuft auf Port ${PORT}`));
