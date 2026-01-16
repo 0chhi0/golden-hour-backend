@@ -11,16 +11,17 @@ const WINDY_KEY = process.env.WINDY_API_KEY || process.env.WINDY_KEY || 'z56DtDa
 app.get('/api/webcams', async (req, res) => {
     try {
         let allWebcams = [];
-        const limit = 50;
-        const totalPackages = 10; // Erhöht auf 10 Pakete (500 Cams Reichweite)
+        // Deine exakte Auswahl aus dem PowerShell-Test
+        const categories = [
+            'beach', 'city', 'coast', 'forest', 'lake', 
+            'landscape', 'mountain', 'river', 'village'
+        ];
+        
+        console.log(`🚀 Starte gezielten Kategorien-Scan (${categories.length} Gruppen)...`);
 
-        console.log(`🚀 Starte priorisierten Scan: ${totalPackages} Pakete mit Filter property=live,day...`);
-
-        for (let i = 0; i < totalPackages; i++) {
-            const offset = i * limit;
-            
-            // Nutzt den stabilen Pfad und den Eigenschafts-Filter für Video-Priorisierung
-            const url = `https://api.windy.com/webcams/api/v3/webcams?limit=${limit}&offset=${offset}&property=live,day&include=location,images,urls,player`;
+        for (const cat of categories) {
+            // Wir nutzen den stabilen Pfad mit Kategorie- und Video-Filter
+            const url = `https://api.windy.com/webcams/api/v3/webcams?limit=50&category=${cat}&property=live,day&include=location,images,urls,player`;
             
             const response = await fetch(url, {
                 method: 'GET',
@@ -34,19 +35,21 @@ app.get('/api/webcams', async (req, res) => {
                 const data = await response.json();
                 if (data.webcams && Array.isArray(data.webcams)) {
                     allWebcams = allWebcams.concat(data.webcams);
-                    console.log(`✅ Paket ${i + 1} (Offset ${offset}): ${data.webcams.length} Video-Kameras erhalten.`);
+                    console.log(`✅ ${cat}: ${data.webcams.length} Video-Kameras gefunden.`);
                 }
             } else {
-                // Falls ein Paket fehlschlägt (z.B. 404), wird es geloggt, aber der Scan geht weiter
-                console.error(`❌ Fehler bei Paket ${i + 1}: Status ${response.status}`);
+                console.error(`❌ Fehler bei Kategorie ${cat}: Status ${response.status}`);
             }
             
-            // Kurze Pause zur API-Schonung
+            // Kurze Pause zwischen den Abfragen
             await new Promise(resolve => setTimeout(resolve, 50));
         }
 
-        console.log(`📊 Scan beendet. Gesamtpool: ${allWebcams.length} reine Video-Webcams.`);
-        res.json({ webcams: allWebcams });
+        // Dubletten entfernen (falls eine Cam in 'coast' und 'beach' gelistet ist)
+        const uniqueWebcams = Array.from(new Map(allWebcams.map(w => [w.webcamId, w])).values());
+
+        console.log(`📊 Scan beendet. Gesamt: ${uniqueWebcams.length} Webcams in den Ziel-Kategorien.`);
+        res.json({ webcams: uniqueWebcams });
 
     } catch (error) {
         console.error('❌ Server-Fehler:', error.message);
