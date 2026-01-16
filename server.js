@@ -15,7 +15,7 @@ app.get('/api/webcams', async (req, res) => {
 
         // Gezielte Boxen für eine echte Weltabdeckung
         const regions = [
-            { name: 'USA & Kanada', box: '60,-125,25,-65' },
+            { name: 'North America', box: '60,-125,25,-65' },
             { name: 'Europa', box: '65,-10,35,30' },
             { name: 'Asien & Japan', box: '50,120,20,150' },
             { name: 'Australien', box: '-10,110,-40,155' }
