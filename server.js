@@ -1,81 +1,91 @@
-import express from "express";
-import fetch from "node-fetch";
-import cors from "cors";
-import dotenv from "dotenv";
-
-dotenv.config();
+import express from 'express';
+import cors from 'cors';
+import fetch from 'node-fetch';
 
 const app = express();
-const PORT = 3000;
-
 app.use(cors());
-app.use(express.json());
 
-const WINDY_KEY = process.env.WINDY_API_KEY;
+// Sicherstellung der API-Key Variable
+const WINDY_KEY = process.env.WINDY_API_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
 
-// 🌍 WELTWEITE REGIONEN (realistisch & vollständig)
-const regions = [
-  { name: "Europa", box: "72,-25,34,45" },
-  { name: "Nordamerika", box: "70,-170,15,-50" },
-  { name: "Südamerika", box: "15,-90,-55,-30" },
-  { name: "Afrika", box: "37,-20,-35,55" },
-  { name: "Asien", box: "75,40,5,180" },
-  { name: "Australien", box: "-10,110,-50,180" }
-];
+// Cache-Logik zur Schonung deines Kontingents und für schnellere Ladezeiten
+let webcamCache = null;
+let lastFetchTime = 0;
+const CACHE_DURATION = 20 * 60 * 1000; // 20 Minuten Cache
 
-// 🔁 EIN Endpunkt für alle Webcams
-app.get("/api/webcams", async (req, res) => {
-  try {
-    let allWebcams = [];
+app.get('/api/webcams', async (req, res) => {
+    const now = Date.now();
+    if (webcamCache && (now - lastFetchTime < CACHE_DURATION)) {
+        console.log("⚡ Daten aus Cache geladen.");
+        return res.json({ webcams: webcamCache });
+    }
 
-    for (const region of regions) {
-      const url =
-        `https://api.windy.com/webcams/api/v3/webcams` +
-        `?limit=50` +
-        `&area=${region.box}` +
-        `&include=location,images,urls,player`;
+    try {
+        let allWebcams = [];
+        // Fokus auf die 5 wichtigsten Kategorien für maximale Dichte
+        const categories = ['city', 'mountain', 'beach', 'landscape', 'coast'];
+        
+        // Nutzung der stabilen Kontinent-Codes aus deiner PowerShell-Analyse
+        const continents = [
+            { id: 'NA', name: 'Nordamerika' },
+            { id: 'EU', name: 'Europa' },
+            { id: 'AS', name: 'Asien' },
+            { id: 'OC', name: 'Ozeanien/Australien' },
+            { id: 'SA', name: 'Südamerika' },
+            { id: 'AF', name: 'Afrika' }
+        ];
 
-      const response = await fetch(url, {
-        headers: {
-          "x-windy-api-key": WINDY_KEY
+        console.log(`🌍 Starte globalen Kontinent-Scan...`);
+
+        // Wir erstellen alle Anfragen parallel, um die Ladezeit zu minimieren
+        const fetchPromises = [];
+
+        for (const cont of continents) {
+            for (const cat of categories) {
+                // Wir nutzen den 'continent' Filter statt der ungenauen Bounding Box
+                const url = `https://api.windy.com/webcams/api/v3/webcams?limit=50&category=${cat}&continent=${cont.id}&include=location,images,urls,player`;
+                
+                fetchPromises.push(
+                    fetch(url, { headers: { 'x-windy-api-key': WINDY_KEY } })
+                    .then(r => r.ok ? r.json() : { webcams: [] })
+                    .catch(() => ({ webcams: [] }))
+                );
+            }
         }
-      });
 
-      if (!response.ok) continue;
+        const results = await Promise.all(fetchPromises);
 
-      const data = await response.json();
+        results.forEach(data => {
+            if (data.webcams && Array.isArray(data.webcams)) {
+                // Smart-Filter: Prüft auf Flags ODER direkte Stream-URLs
+                const valid = data.webcams.filter(w => {
+                    if (!w.player) return false;
+                    const hasLive = w.player.live === true || (typeof w.player.live === 'string' && w.player.live.length > 0);
+                    const hasDay = w.player.day === true || (typeof w.player.day === 'string' && w.player.day.length > 0);
+                    return hasLive || hasDay;
+                });
+                allWebcams = allWebcams.concat(valid);
+            }
+        });
 
-      if (data?.result?.webcams) {
-        const enriched = data.result.webcams.map(wc => ({
-          ...wc,
-          region: region.name
-        }));
-        allWebcams.push(...enriched);
-      }
+        // Eindeutige IDs sicherstellen (da Cams in mehreren Kategorien sein können)
+        const uniqueWebcams = Array.from(new Map(allWebcams.map(w => [w.webcamId, w])).values());
+
+        // Cache aktualisieren
+        webcamCache = uniqueWebcams;
+        lastFetchTime = now;
+
+        console.log(`📊 Globaler Pool bereit: ${uniqueWebcams.length} hochwertige Webcams.`);
+        res.json({ webcams: uniqueWebcams });
+
+    } catch (error) {
+        console.error('❌ Kritischer Fehler:', error.message);
+        res.status(500).json({ error: error.message });
     }
-
-    // 🔥 Duplikate entfernen (Windy liefert oft gleiche Webcams)
-    const unique = [];
-    const seen = new Set();
-
-    for (const cam of allWebcams) {
-      if (!seen.has(cam.id)) {
-        seen.add(cam.id);
-        unique.push(cam);
-      }
-    }
-
-    res.json({
-      count: unique.length,
-      webcams: unique
-    });
-
-  } catch (err) {
-    console.error("Backend Fehler:", err);
-    res.status(500).json({ error: "Webcam API Fehler" });
-  }
 });
 
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`✅ Backend läuft auf http://localhost:${PORT}`);
+    console.log(`🚀 Reichweiten-Backend aktiv auf Port ${PORT}`);
+    console.log(`🌎 Modus: Globaler Kontinent-Scan (NA, EU, AS, OC, SA, AF)`);
 });
