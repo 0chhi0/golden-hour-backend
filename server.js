@@ -26,7 +26,7 @@ app.get('/api/webcams', async (req, res) => {
 
         for (const region of regions) {
             for (const cat of categories) {
-                // Die 'area' sorgt für die geografische Verteilung
+                // Der Parameter 'area' zwingt die API in die jeweilige Region
                 const url = `https://api.windy.com/webcams/api/v3/webcams?limit=40&category=${cat}&area=${region.box}&include=location,images,urls,player`;
                 
                 const response = await fetch(url, {
@@ -36,10 +36,12 @@ app.get('/api/webcams', async (req, res) => {
                 if (response.ok) {
                     const data = await response.json();
                     if (data.webcams) {
-                        // Smart-Filter: Erfasst auch Cams wie 1731969577 (URL-Check)
+                        // Smart-Filter: Findet auch Cams wie 1731969577 (URL-String Check)
                         const validVideos = data.webcams.filter(w => {
                             if (!w.player) return false;
-                            return (w.player.live || w.player.day);
+                            const hasLive = w.player.live === true || (typeof w.player.live === 'string' && w.player.live.length > 0);
+                            const hasDay = w.player.day === true || (typeof w.player.day === 'string' && w.player.day.length > 0);
+                            return hasLive || hasDay;
                         });
                         allWebcams = allWebcams.concat(validVideos);
                     }
@@ -55,6 +57,7 @@ app.get('/api/webcams', async (req, res) => {
         res.json({ webcams: uniqueWebcams });
 
     } catch (error) {
+        console.error('❌ Fehler:', error.message);
         res.status(500).json({ error: error.message });
     }
 });
