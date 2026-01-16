@@ -131,27 +131,48 @@ app.get('/api/webcams', async (req, res) => {
         
         console.log(`📡 Stapel-Scan: Starte Einzelabfrage für ${targetCountries.length} Länder...`);
         
+        // Erhöhe das Limit - hole mehrere Seiten pro Land
         const results = await Promise.all(targetCountries.map(async (country) => {
+            const allCamsForCountry = [];
+            let offset = 0;
+            const limit = 50; // Windy API Limit pro Request
+            const maxPages = 6; // Maximal 6 Seiten = 300 Webcams pro Land
+            
             try {
-                const response = await fetch(
-                    `https://api.windy.com/webcams/api/v3/webcams?limit=50&country=${country.id}&include=location,player`,
-                    { headers: { 'x-windy-api-key': WINDY_KEY } }
-                );
-                
-                if (!response.ok) {
-                    console.log(`⚠️ Land ${country.id}: API Fehler ${response.status}`);
-                    return [];
+                for (let page = 0; page < maxPages; page++) {
+                    const response = await fetch(
+                        `https://api.windy.com/webcams/api/v3/webcams?limit=${limit}&offset=${offset}&country=${country.id}&include=location,player`,
+                        { headers: { 'x-windy-api-key': WINDY_KEY } }
+                    );
+                    
+                    if (!response.ok) {
+                        console.log(`⚠️ Land ${country.id}: API Fehler ${response.status}`);
+                        break;
+                    }
+                    
+                    const data = await response.json();
+                    const cams = data.webcams || [];
+                    
+                    if (cams.length === 0) break; // Keine weiteren Cams verfügbar
+                    
+                    allCamsForCountry.push(...cams);
+                    
+                    // Wenn weniger als limit zurückkommen, gibt es keine weiteren Seiten
+                    if (cams.length < limit) break;
+                    
+                    offset += limit;
+                    
+                    // Kleine Pause zwischen Requests um Rate Limits zu vermeiden
+                    await new Promise(resolve => setTimeout(resolve, 50));
                 }
                 
-                const data = await response.json();
-                const cams = data.webcams || [];
-                
-                if (cams.length > 0) {
-                    console.log(`📍 ${country.id}: ${cams.length} Cams gefunden.`);
+                if (allCamsForCountry.length > 0) {
+                    console.log(`📍 ${country.id}: ${allCamsForCountry.length} Cams gefunden.`);
                 }
-                return cams;
+                
+                return allCamsForCountry;
             } catch (err) {
-                console.log(`❌ Fehler bei Land ${country.id}`);
+                console.log(`❌ Fehler bei Land ${country.id}:`, err.message);
                 return [];
             }
         }));
@@ -164,8 +185,16 @@ app.get('/api/webcams', async (req, res) => {
             new Map(allWebcams.map(w => [w.webcamId, w])).values()
         );
         
-        console.log(`✅ SCAN BEENDET. Gesamt-Stapelgröße: ${uniqueWebcams.length} Webcams.`);
-        res.json({ webcams: uniqueWebcams });
+        console.log(`✅ SCAN BEENDET. Gesamt-Stapelgröße: ${uniqueWebcams.length} Webcams aus ${targetCountries.length} Ländern.`);
+        
+        res.json({ 
+            webcams: uniqueWebcams,
+            stats: {
+                totalCountries: targetCountries.length,
+                totalWebcams: uniqueWebcams.length,
+                averagePerCountry: Math.round(uniqueWebcams.length / targetCountries.length)
+            }
+        });
         
     } catch (error) {
         console.error("Kritischer Backend-Fehler:", error);
@@ -174,4 +203,4 @@ app.get('/api/webcams', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`🚀 Stapel-Backend v5 (Stabil) aktiv auf Port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Stapel-Backend v6 (Multi-Page) aktiv auf Port ${PORT}`));
