@@ -119,80 +119,101 @@ const worldData = [
     { id: 'NA', lon: 18.5 }, { id: 'LS', lon: 28.2 }, { id: 'SZ', lon: 31.5 }
 ];
 
+// Funktion um alle Webcams für ein Land zu holen
+async function fetchAllWebcamsForCountry(country) {
+    const allCamsForCountry = [];
+    let offset = 0;
+    const limit = 50;
+    let hasMore = true;
+    
+    try {
+        while (hasMore) {
+            const response = await fetch(
+                `https://api.windy.com/webcams/api/v3/webcams?limit=${limit}&offset=${offset}&country=${country.id}&include=location,player`,
+                { headers: { 'x-windy-api-key': WINDY_KEY } }
+            );
+            
+            if (!response.ok) {
+                console.log(`⚠️ Land ${country.id}: API Fehler ${response.status}`);
+                break;
+            }
+            
+            const data = await response.json();
+            const cams = data.webcams || [];
+            
+            if (cams.length === 0) {
+                hasMore = false;
+            } else {
+                allCamsForCountry.push(...cams);
+                offset += limit;
+                
+                // Wenn weniger als limit zurückkommen, gibt es keine weiteren Seiten
+                if (cams.length < limit) {
+                    hasMore = false;
+                }
+                
+                // Kleine Pause zwischen Requests
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        }
+        
+        if (allCamsForCountry.length > 0) {
+            console.log(`📍 ${country.id}: ${allCamsForCountry.length} Cams gefunden (${Math.ceil(allCamsForCountry.length / limit)} Seiten)`);
+        }
+        
+        return allCamsForCountry;
+    } catch (err) {
+        console.log(`❌ Fehler bei Land ${country.id}:`, err.message);
+        return [];
+    }
+}
+
 app.get('/api/webcams', async (req, res) => {
     try {
         const now = new Date();
         const targetCountries = worldData.filter(c => {
             const sunPos = SunCalc.getPosition(now, 0, c.lon);
             const altitude = sunPos.altitude * 180 / Math.PI;
-            // Großzügiger Scan-Bereich für das Backend
             return (altitude >= -15 && altitude <= 15);
         });
         
-        console.log(`📡 Stapel-Scan: Starte Einzelabfrage für ${targetCountries.length} Länder...`);
+        console.log(`📡 Stapel-Scan: Starte SEQUENTIELLE Abfrage für ${targetCountries.length} Länder...`);
+        console.log(`⏱️ Erwartete Dauer: ~${Math.ceil(targetCountries.length * 0.5)} Sekunden`);
         
-        // Erhöhe das Limit - hole mehrere Seiten pro Land
-        const results = await Promise.all(targetCountries.map(async (country) => {
-            const allCamsForCountry = [];
-            let offset = 0;
-            const limit = 50; // Windy API Limit pro Request
-            const maxPages = 6; // Maximal 6 Seiten = 300 Webcams pro Land
+        const allWebcams = [];
+        let processedCount = 0;
+        
+        // SEQUENTIELL durchgehen (nicht parallel!)
+        for (const country of targetCountries) {
+            processedCount++;
+            console.log(`[${processedCount}/${targetCountries.length}] Verarbeite ${country.id}...`);
             
-            try {
-                for (let page = 0; page < maxPages; page++) {
-                    const response = await fetch(
-                        `https://api.windy.com/webcams/api/v3/webcams?limit=${limit}&offset=${offset}&country=${country.id}&include=location,player`,
-                        { headers: { 'x-windy-api-key': WINDY_KEY } }
-                    );
-                    
-                    if (!response.ok) {
-                        console.log(`⚠️ Land ${country.id}: API Fehler ${response.status}`);
-                        break;
-                    }
-                    
-                    const data = await response.json();
-                    const cams = data.webcams || [];
-                    
-                    if (cams.length === 0) break; // Keine weiteren Cams verfügbar
-                    
-                    allCamsForCountry.push(...cams);
-                    
-                    // Wenn weniger als limit zurückkommen, gibt es keine weiteren Seiten
-                    if (cams.length < limit) break;
-                    
-                    offset += limit;
-                    
-                    // Kleine Pause zwischen Requests um Rate Limits zu vermeiden
-                    await new Promise(resolve => setTimeout(resolve, 50));
-                }
-                
-                if (allCamsForCountry.length > 0) {
-                    console.log(`📍 ${country.id}: ${allCamsForCountry.length} Cams gefunden.`);
-                }
-                
-                return allCamsForCountry;
-            } catch (err) {
-                console.log(`❌ Fehler bei Land ${country.id}:`, err.message);
-                return [];
+            const cams = await fetchAllWebcamsForCountry(country);
+            allWebcams.push(...cams);
+            
+            // Status-Update alle 10 Länder
+            if (processedCount % 10 === 0) {
+                console.log(`📊 Zwischenstand: ${allWebcams.length} Webcams von ${processedCount} Ländern`);
             }
-        }));
-        
-        // Stapel zusammenfügen
-        const allWebcams = results.flat();
+        }
         
         // Dubletten entfernen
         const uniqueWebcams = Array.from(
             new Map(allWebcams.map(w => [w.webcamId, w])).values()
         );
         
-        console.log(`✅ SCAN BEENDET. Gesamt-Stapelgröße: ${uniqueWebcams.length} Webcams aus ${targetCountries.length} Ländern.`);
+        console.log(`✅ SCAN BEENDET!`);
+        console.log(`📊 Gesamt: ${uniqueWebcams.length} einzigartige Webcams`);
+        console.log(`📍 Aus: ${targetCountries.length} Ländern`);
+        console.log(`📈 Durchschnitt: ${Math.round(uniqueWebcams.length / targetCountries.length)} pro Land`);
         
         res.json({ 
             webcams: uniqueWebcams,
             stats: {
                 totalCountries: targetCountries.length,
                 totalWebcams: uniqueWebcams.length,
-                averagePerCountry: Math.round(uniqueWebcams.length / targetCountries.length)
+                averagePerCountry: Math.round(uniqueWebcams.length / targetCountries.length),
+                timestamp: new Date().toISOString()
             }
         });
         
@@ -203,4 +224,4 @@ app.get('/api/webcams', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`🚀 Stapel-Backend v6 (Multi-Page) aktiv auf Port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Stapel-Backend v7 (Sequentiell + Debug) aktiv auf Port ${PORT}`));
