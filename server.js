@@ -11,36 +11,40 @@ const WINDY_KEY = process.env.WINDY_API_KEY || process.env.WINDY_KEY || 'z56DtDa
 app.get('/api/webcams', async (req, res) => {
     try {
         let allWebcams = [];
+        // Deine verifizierten Kategorien
         const categories = ['beach', 'city', 'coast', 'forest', 'lake', 'landscape', 'mountain', 'river', 'village'];
         
-        console.log(`🚀 Starte Deep-Scan für ${categories.length} Kategorien...`);
+        console.log(`🚀 Starte Deep-Scan für ${categories.length} Kategorien (3 Pakete pro Typ)...`);
 
         for (const cat of categories) {
-            // Wir laden pro Kategorie 2 Pakete (Offset 0 und 50), um mehr als nur 50 Cams zu erhalten
-            for (let offset of [0, 50]) {
+            // Wir laden pro Kategorie 3 Seiten, um die 50er-Grenze zu sprengen
+            for (let offset of [0, 50, 100]) {
                 const url = `https://api.windy.com/webcams/api/v3/webcams?limit=50&offset=${offset}&category=${cat}&property=live,day&include=location,images,urls,player`;
                 
                 const response = await fetch(url, {
                     method: 'GET',
-                    headers: { 'x-windy-api-key': WINDY_KEY }
+                    headers: { 
+                        'x-windy-api-key': WINDY_KEY,
+                        'Content-Type': 'application/json'
+                    }
                 });
 
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.webcams) {
+                    if (data.webcams && Array.isArray(data.webcams)) {
+                        // .concat stellt sicher, dass wir hinzufügen, statt zu überschreiben
                         allWebcams = allWebcams.concat(data.webcams);
                     }
                 }
             }
             console.log(`✅ Kategorie ${cat} verarbeitet.`);
-            // Kurze Pause, um das API-Limit nicht zu sprengen
             await new Promise(resolve => setTimeout(resolve, 50));
         }
 
-        // Dubletten entfernen (wichtig, da eine Cam in 'beach' und 'coast' sein kann)
+        // Dubletten entfernen (Kameras können in 'beach' UND 'coast' sein)
         const uniqueWebcams = Array.from(new Map(allWebcams.map(w => [w.webcamId, w])).values());
 
-        console.log(`📊 Scan beendet. Gesamtpool: ${uniqueWebcams.length} Video-Webcams.`);
+        console.log(`📊 Scan beendet. Gesamtpool: ${uniqueWebcams.length} hochwertige Video-Webcams.`);
         res.json({ webcams: uniqueWebcams });
 
     } catch (error) {
