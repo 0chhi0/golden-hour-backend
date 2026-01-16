@@ -11,14 +11,16 @@ const WINDY_KEY = process.env.WINDY_API_KEY || process.env.WINDY_KEY || 'z56DtDa
 app.get('/api/webcams', async (req, res) => {
     try {
         let allWebcams = [];
-        // Deine verifizierten Kategorien
+        // Deine verifizierten Kategorien aus der PowerShell
         const categories = ['beach', 'city', 'coast', 'forest', 'lake', 'landscape', 'mountain', 'river', 'village'];
         
-        console.log(`🚀 Starte Deep-Scan für ${categories.length} Kategorien (3 Pakete pro Typ)...`);
+        console.log(`🚀 Starte Maximum-Density Scan (6 Pakete pro Kategorie)...`);
 
         for (const cat of categories) {
-            // Wir laden pro Kategorie 3 Seiten, um die 50er-Grenze zu sprengen
-            for (let offset of [0, 50, 100]) {
+            // Wir erhöhen auf 6 Pakete pro Kategorie, um tiefer in die Datenbank zu greifen
+            const offsets = [0, 50, 100, 150, 200, 250];
+            
+            for (let offset of offsets) {
                 const url = `https://api.windy.com/webcams/api/v3/webcams?limit=50&offset=${offset}&category=${cat}&property=live,day&include=location,images,urls,player`;
                 
                 const response = await fetch(url, {
@@ -32,23 +34,24 @@ app.get('/api/webcams', async (req, res) => {
                 if (response.ok) {
                     const data = await response.json();
                     if (data.webcams && Array.isArray(data.webcams)) {
-                        // .concat stellt sicher, dass wir hinzufügen, statt zu überschreiben
+                        // Ergebnisse hinzufügen
                         allWebcams = allWebcams.concat(data.webcams);
                     }
                 }
             }
-            console.log(`✅ Kategorie ${cat} verarbeitet.`);
+            console.log(`✅ Kategorie ${cat} tiefengescannt.`);
+            // Kurze Pause, um Rate-Limiting zu vermeiden
             await new Promise(resolve => setTimeout(resolve, 50));
         }
 
-        // Dubletten entfernen (Kameras können in 'beach' UND 'coast' sein)
+        // WICHTIG: Eindeutige IDs sicherstellen, da Cams oft in mehreren Kategorien sind
         const uniqueWebcams = Array.from(new Map(allWebcams.map(w => [w.webcamId, w])).values());
 
-        console.log(`📊 Scan beendet. Gesamtpool: ${uniqueWebcams.length} hochwertige Video-Webcams.`);
+        console.log(`📊 Scan beendet. Neuer Gesamtpool: ${uniqueWebcams.length} Video-Webcams.`);
         res.json({ webcams: uniqueWebcams });
 
     } catch (error) {
-        console.error('❌ Fehler:', error.message);
+        console.error('❌ Fehler im Deep-Scan:', error.message);
         res.status(500).json({ error: error.message });
     }
 });
