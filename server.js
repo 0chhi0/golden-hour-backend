@@ -11,32 +11,32 @@ const WINDY_KEY = process.env.WINDY_API_KEY || process.env.WINDY_KEY || 'z56DtDa
 app.get('/api/webcams', async (req, res) => {
     try {
         let allWebcams = [];
-        const categories = ['beach', 'city', 'mountain', 'lake', 'landscape']; // Fokus auf Top-Kategorien
+        const categories = ['beach', 'city', 'mountain', 'lake', 'landscape'];
         
-        // Definition von Bounding Boxes für eine globale Verteilung
-        // [nord, west, süd, ost]
+        // Definition der Weltzonen [Nord, West, Süd, Ost]
         const regions = [
-            { name: 'Europa', box: '71, -10, 35, 30' },
-            { name: 'Nordamerika', box: '72, -170, 15, -50' },
-            { name: 'Asien/Ozeanien', box: '75, 60, -45, 180' },
-            { name: 'Südamerika/Afrika', box: '35, -90, -55, 60' }
+            { name: 'Nordamerika', box: '72,-170,15,-50' },
+            { name: 'Südamerika', box: '15,-95,-55,-30' },
+            { name: 'Europa/Afrika', box: '71,-20,-35,45' },
+            { name: 'Asien', box: '75,60,5,150' },
+            { name: 'Ozeanien/Australien', box: '5,110,-45,180' }
         ];
 
-        console.log(`🌍 Starte globalen Scan für ${regions.length} Regionen...`);
+        console.log(`🌍 Starte globalen Scan für ${regions.length} Weltregionen...`);
 
         for (const region of regions) {
             for (const cat of categories) {
-                // Abfrage pro Region UND Kategorie
-                const url = `https://api.windy.com/webcams/api/v3/webcams?limit=30&category=${cat}&area=${region.box}&include=location,images,urls,player`;
+                // Die 'area' sorgt für die geografische Verteilung
+                const url = `https://api.windy.com/webcams/api/v3/webcams?limit=40&category=${cat}&area=${region.box}&include=location,images,urls,player`;
                 
                 const response = await fetch(url, {
-                    headers: { 'x-windy-api-key': WIND_KEY }
+                    headers: { 'x-windy-api-key': WINDY_KEY }
                 });
 
                 if (response.ok) {
                     const data = await response.json();
                     if (data.webcams) {
-                        // Dein bewährter Smart-Filter für Video-URLs
+                        // Smart-Filter: Erfasst auch Cams wie 1731969577 (URL-Check)
                         const validVideos = data.webcams.filter(w => {
                             if (!w.player) return false;
                             return (w.player.live || w.player.day);
@@ -46,9 +46,12 @@ app.get('/api/webcams', async (req, res) => {
                 }
             }
             console.log(`✅ Region ${region.name} abgeschlossen.`);
+            await new Promise(resolve => setTimeout(resolve, 40));
         }
 
+        // Dubletten entfernen und Ergebnis senden
         const uniqueWebcams = Array.from(new Map(allWebcams.map(w => [w.webcamId, w])).values());
+        console.log(`📊 Globaler Pool bereit: ${uniqueWebcams.length} Webcams.`);
         res.json({ webcams: uniqueWebcams });
 
     } catch (error) {
