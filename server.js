@@ -144,14 +144,13 @@ async function fetchAllWebcamsForCountry(country, retries = 3) {
                     );
                     
                     if (!response.ok) {
-                        if (response.status === 429) { // Rate Limit
-                            console.log(`⏸️ Rate Limit erreicht für ${country.id}, warte 2 Sekunden...`);
-                            await new Promise(resolve => setTimeout(resolve, 2000));
-                            attempt++;
-                            continue;
-                        }
-                        throw new Error(`HTTP ${response.status}`);
-                    }
+    if (response.status === 429) {
+        console.error(`🛑 RATE LIMIT BLOCK bei Land ${country.id}! Windy blockt uns.`);
+    } else {
+        console.error(`❌ API Fehler bei ${country.id}: Status ${response.status}`);
+    }
+    throw new Error(`HTTP ${response.status}`);
+}
                     
                     const data = await response.json();
                     const cams = data.webcams || [];
@@ -199,7 +198,7 @@ async function fetchAllWebcamsForCountry(country, retries = 3) {
 }
 
 // Batch-Verarbeitung: Verarbeite N Länder parallel
-async function processBatch(countries, batchSize = 5) {
+async function processBatch(countries, batchSize = 3) {
     const results = [];
     
     for (let i = 0; i < countries.length; i += batchSize) {
@@ -214,7 +213,7 @@ async function processBatch(countries, batchSize = 5) {
         
         // Pause zwischen Batches
         if (i + batchSize < countries.length) {
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 1000));
         }
     }
     
@@ -272,5 +271,6 @@ app.get('/api/webcams', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, 10000);
-app.listen(PORT, () => console.log(`🚀 Golden Hour Backend v8 (mit Bildvorschau) läuft auf Port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Golden Hour Backend v8 läuft auf Port ${PORT}`);
+});
