@@ -134,8 +134,9 @@ async function fetchAllWebcamsForCountry(country, retries = 3) {
             // Retry-Logik für fehlgeschlagene Requests
             while (!success && attempt < retries) {
                 try {
+                    // ✅ WICHTIG: include=image hinzugefügt!
                     const response = await fetch(
-                        `https://api.windy.com/webcams/api/v3/webcams?limit=${limit}&offset=${offset}&country=${country.id}&include=location,player`,
+                        `https://api.windy.com/webcams/api/v3/webcams?limit=${limit}&offset=${offset}&country=${country.id}&include=location,player,image`,
                         { 
                             headers: { 'x-windy-api-key': WINDY_KEY },
                             timeout: 10000 // 10 Sekunden Timeout
@@ -271,4 +272,5 @@ app.get('/api/webcams', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`🚀 Golden Hour Backend v8 (Optimiert) läuft auf Port ${PORT}`));
+app.listen(PORT, 10000);
+app.listen(PORT, () => console.log(`🚀 Golden Hour Backend v8 (mit Bildvorschau) läuft auf Port ${PORT}`));
