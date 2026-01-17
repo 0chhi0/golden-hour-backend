@@ -272,6 +272,5 @@ app.get('/api/webcams', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Golden Hour Backend v8 läuft auf Port ${PORT}`);
-});
+app.listen(PORT, 10000);
+app.listen(PORT, () => console.log(`🚀 Golden Hour Backend v8 (mit Bildvorschau) läuft auf Port ${PORT}`));
