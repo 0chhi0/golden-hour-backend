@@ -8,7 +8,7 @@ app.use(cors());
 
 const WINDY_KEY = process.env.WINDY_API_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
 
-// Referenz-Koordinaten für die Länder-Suche
+// Deine vollständige Liste aus Skript 1 (hier gekürzt für die Übersicht)
 const worldData = [
     // Nordamerika
     { id: 'US', lon: -95.7 }, { id: 'CA', lon: -106.3 }, { id: 'MX', lon: -102.5 },
@@ -120,59 +120,67 @@ const worldData = [
 
 ];
 
-async function fetchWebcams(params) {
-    const url = `https://api.windy.com/webcams/api/v3/webcams?${params}&include=location,images,urls,player`;
-    const response = await fetch(url, { headers: { 'x-windy-api-key': WINDY_KEY } });
-    if (!response.ok) return [];
-    const data = await response.json();
-    return data.webcams || [];
+async function fetchCams(countryId) {
+    try {
+        const url = `https://api.windy.com/webcams/api/v3/webcams?limit=30&country=${countryId}&property=live,day&include=location,images,player`;
+        const res = await fetch(url, { headers: { 'x-windy-api-key': WINDY_KEY } });
+        return res.ok ? (await res.json()).webcams : [];
+    } catch (e) { return []; }
 }
 
 app.get('/api/webcams', async (req, res) => {
     try {
         const now = new Date();
-        let allWebcams = [];
+        const activeCountries = new Set();
 
-        // 1. SCHRITT: Golden-Hour Länder finden
-        const goldenHourCountries = worldData.filter(c => {
-            const sunPos = SunCalc.getPosition(now, 0, c.lon);
+        console.log("🔍 Starte Globalen Terminator-Scan...");
+
+        // 1. Scanne die Welt in 5-Grad-Schritten (sehr präzise)
+        for (let lon = -180; lon <= 180; lon += 5) {
+            const sunPos = SunCalc.getPosition(now, 0, lon);
             const altitude = sunPos.altitude * 180 / Math.PI;
-            return (altitude >= -15 && altitude <= 15);
-        });
 
-        if (goldenHourCountries.length > 0) {
-            console.log(`🌅 Golden Hour in: ${goldenHourCountries.map(c => c.id).join(', ')}`);
-            
-            // Versuche für die ersten 5 Länder Webcams zu bekommen
-            for (const country of goldenHourCountries.slice(0, 5)) {
-                const cams = await fetchWebcams(`limit=20&country=${country.id}&property=live,day`);
-                allWebcams = allWebcams.concat(cams);
+            // Wenn dieser Längengrad in der Golden Hour liegt
+            if (altitude >= -12 && altitude <= 12) {
+                // Finde ALLE Länder, die nah an diesem Längengrad liegen
+                worldData.forEach(country => {
+                    // Wenn der Längengrad des Landes max 15 Grad vom Dämmerungs-Punkt weg ist
+                    if (Math.abs(country.lon - lon) < 15) {
+                        activeCountries.add(country.id);
+                    }
+                });
             }
         }
 
-        // 2. SCHRITT: Fallback auf Global-Scan
-        // Wenn keine Länder gefunden wurden oder weniger als 10 Cams da sind
-        if (allWebcams.length < 10) {
-            console.log("🔄 Zu wenige Länder-Ergebnisse. Starte Globalen Fallback-Scan...");
-            const globalCams = await fetchWebcams(`limit=50&offset=0&property=live,day`);
-            allWebcams = allWebcams.concat(globalCams);
-        }
+        const targetList = Array.from(activeCountries);
+        console.log(`🌅 Identifizierte Länder in der Zone: ${targetList.join(', ')}`);
 
-        // Dubletten entfernen
+        // 2. Abfrage aller Länder parallel
+        const results = await Promise.all(targetList.map(id => fetchCams(id)));
+        let allWebcams = results.flat();
+
+        // 3. Dubletten-Check
         const uniqueWebcams = Array.from(
             new Map(allWebcams.map(w => [w.webcamId, w])).values()
         );
 
-        console.log(`✅ Ergebnis: ${uniqueWebcams.length} Webcams an Frontend gesendet.`);
-        res.json({ webcams: uniqueWebcams });
+        // 4. Globaler Fallback (falls die Zone nur über Ozeanen liegt)
+        if (uniqueWebcams.length < 10) {
+            console.log("🌊 Zone über Ozean, lade globale Kameras...");
+            const global = await fetch(`https://api.windy.com/webcams/api/v3/webcams?limit=50&property=live,day&include=location,images,player`, 
+                { headers: { 'x-windy-api-key': WINDY_KEY } });
+            const data = await global.json();
+            uniqueWebcams.push(...(data.webcams || []));
+        }
+
+        res.json({ 
+            webcams: uniqueWebcams,
+            stats: { countriesMatched: targetList.length, totalFound: uniqueWebcams.length }
+        });
 
     } catch (error) {
-        console.error('❌ Server-Fehler:', error.message);
         res.status(500).json({ error: error.message });
     }
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Hybrid-Backend läuft auf Port ${PORT}`);
-});
+app.listen(10000, '0.0.0.0', () => console.log("🚀 Terminator-Scanner bereit!"));
