@@ -120,15 +120,31 @@ const worldData = [
 
 ];
 
+// ... (Deine Imports und worldData bleiben gleich) ...
+
 async function fetchFromWindy(countryId) {
     try {
-        // Holen von 50 Cams pro Land mit allen Details
         const url = `https://api.windy.com/webcams/api/v3/webcams?limit=50&country=${countryId}&include=location,images,player,urls`;
-        const response = await fetch(url, { headers: { 'x-windy-api-key': WINDY_KEY } });
-        if (!response.ok) return [];
+        const response = await fetch(url, { 
+            headers: { 'x-windy-api-key': WINDY_KEY },
+            timeout: 5000 // Falls ein Land hängt
+        });
+        
+        if (!response.ok) {
+            console.log(`⚠️ API Fehler für ${countryId}: ${response.status}`);
+            return [];
+        }
+        
         const data = await response.json();
-        return data.webcams || [];
-    } catch (e) { return []; }
+        const cams = data.webcams || [];
+        if (cams.length > 0) {
+            console.log(`📍 ${countryId}: ${cams.length} Cams gefunden`);
+        }
+        return cams;
+    } catch (e) { 
+        console.log(`❌ Fehler bei ${countryId}: ${e.message}`);
+        return []; 
+    }
 }
 
 app.get('/api/webcams', async (req, res) => {
@@ -136,16 +152,14 @@ app.get('/api/webcams', async (req, res) => {
         const now = new Date();
         const activeCountryIds = new Set();
 
-        // 1. WELT SCANNEN: Wo ist gerade Golden Hour?
-        // Wir scannen alle 2 Grad für maximale Präzision
-        for (let lon = -180; lon <= 180; lon += 2) {
+        // 1. Scanner (leicht verbreitert für mehr Treffer)
+        for (let lon = -180; lon <= 180; lon += 5) { // 5 Grad Schritte reichen völlig
             const sunPos = SunCalc.getPosition(now, 0, lon);
             const altitude = sunPos.altitude * 180 / Math.PI;
 
-            // Großzügiges Fenster (-18 bis +18), um auch angrenzende Gebiete zu finden
             if (altitude >= -18 && altitude <= 18) {
                 worldData.forEach(c => {
-                    if (Math.abs(c.lon - lon) < 12) { // Land liegt in der Zone
+                    if (Math.abs(c.lon - lon) < 15) {
                         activeCountryIds.add(c.id);
                     }
                 });
@@ -153,43 +167,50 @@ app.get('/api/webcams', async (req, res) => {
         }
 
         const targetCountries = Array.from(activeCountryIds);
-        console.log(`🌍 Scanner hat ${targetCountries.length} Länder in der Zone gefunden.`);
+        console.log(`🌍 Scanner hat ${targetCountries.length} Länder identifiziert.`);
 
-        // 2. DATEN ABFRAGEN (In Batches à 5 Länder gleichzeitig um 429 Error zu vermeiden)
+        // 2. Batch-Abfrage (Wir verkleinern die Batches für mehr Zuverlässigkeit)
         let allWebcams = [];
-        const batchSize = 5;
+        const batchSize = 3; // Sicherer bei vielen Ländern
         for (let i = 0; i < targetCountries.length; i += batchSize) {
             const batch = targetCountries.slice(i, i + batchSize);
             const results = await Promise.all(batch.map(id => fetchFromWindy(id)));
             allWebcams = allWebcams.concat(results.flat());
             
-            // Kleine Pause zwischen Batches für die API Stabilität
-            if (i + batchSize < targetCountries.length) {
-                await new Promise(r => setTimeout(r, 300));
-            }
+            // Wichtig: Kurze Pause, damit Windy uns nicht sperrt
+            await new Promise(r => setTimeout(r, 400));
         }
 
-        // 3. FILTERN: Nur Cams, die wirklich in der Golden Hour sind (Altitude Check für jede Cam)
+        console.log(`📊 Rohergebnisse: ${allWebcams.length} Kameras gesammelt.`);
+
+        // 3. Filterung (Prüfe Sonnenstand an Kamerakoordinaten)
         const finalWebcams = allWebcams.filter(w => {
-            if (!w.location) return false;
+            if (!w.location || !w.location.latitude) return false;
             const s = SunCalc.getPosition(now, w.location.latitude, w.location.longitude);
             const alt = s.altitude * 180 / Math.PI;
-            return (alt >= -12 && alt <= 12);
+            
+            // Wir lassen -15 bis +15 Grad zu (Bürgerliche & Nautische Dämmerung)
+            return (alt >= -15 && alt <= 15);
         });
 
-        // 4. DUBLETTEN ENTFERNEN
-        const uniqueWebcams = Array.from(
-            new Map(finalWebcams.map(w => [w.webcamId, w])).values()
-        );
+        // 4. Dubletten & Sortierung nach "Schönheit" (0° ist ideal)
+        const uniqueMap = new Map();
+        finalWebcams.forEach(w => {
+            const s = SunCalc.getPosition(now, w.location.latitude, w.location.longitude);
+            w.sunAlt = s.altitude * 180 / Math.PI; // Speichere Alt für Sortierung
+            if (!uniqueMap.has(w.webcamId)) uniqueMap.set(w.webcamId, w);
+        });
 
-        console.log(`✅ Scan abgeschlossen. ${uniqueWebcams.length} Webcams in der Golden Hour gefunden.`);
-        res.json({ webcams: uniqueWebcams });
+        const sortedWebcams = Array.from(uniqueMap.values())
+            .sort((a, b) => Math.abs(a.sunAlt) - Math.abs(b.sunAlt));
+
+        console.log(`✅ Finale Liste: ${sortedWebcams.length} Kameras werden gesendet.`);
+        res.json({ webcams: sortedWebcams });
 
     } catch (error) {
-        console.error("❌ Fehler:", error);
+        console.error("❌ Kritischer Fehler:", error);
         res.status(500).json({ error: error.message });
     }
 });
-
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Golden Hour Master-Scanner auf Port ${PORT}`));
