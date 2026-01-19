@@ -183,29 +183,33 @@ app.get('/api/webcams', async (req, res) => {
 
         console.log(`📊 Rohergebnisse: ${allWebcams.length} Kameras gesammelt.`);
 
-        // 3. Filterung (Prüfe Sonnenstand an Kamerakoordinaten)
-        const finalWebcams = allWebcams.filter(w => {
-            if (!w.location || !w.location.latitude) return false;
-            const s = SunCalc.getPosition(now, w.location.latitude, w.location.longitude);
-            const alt = s.altitude * 180 / Math.PI;
-            
-            // Wir lassen -15 bis +15 Grad zu (Bürgerliche & Nautische Dämmerung)
-            return (alt >= -15 && alt <= 15);
-        });
+    // ... (innerhalb von app.get('/api/webcams')) ...
 
-        // 4. Dubletten & Sortierung nach "Schönheit" (0° ist ideal)
-        const uniqueMap = new Map();
-        finalWebcams.forEach(w => {
-            const s = SunCalc.getPosition(now, w.location.latitude, w.location.longitude);
-            w.sunAlt = s.altitude * 180 / Math.PI; // Speichere Alt für Sortierung
-            if (!uniqueMap.has(w.webcamId)) uniqueMap.set(w.webcamId, w);
-        });
+// 3. FILTERN & SORTIER-VORBEREITUNG
+const finalWebcams = allWebcams.filter(w => {
+    if (!w.location || !w.location.latitude) return false;
+    const s = SunCalc.getPosition(now, w.location.latitude, w.location.longitude);
+    const alt = s.altitude * 180 / Math.PI;
+    
+    // Wir erweitern auf -12 bis +12 Grad (komplette Dämmerungsphase)
+    // Das erhöht die Trefferquote massiv.
+    if (alt >= -12 && alt <= 12) {
+        w.sunAlt = alt; // Wir speichern den Wert für das Frontend
+        return true;
+    }
+    return false;
+});
 
-        const sortedWebcams = Array.from(uniqueMap.values())
-            .sort((a, b) => Math.abs(a.sunAlt) - Math.abs(b.sunAlt));
+// 4. DUBLETTEN ENTFERNEN
+const uniqueWebcams = Array.from(
+    new Map(finalWebcams.map(w => [w.webcamId, w])).values()
+);
 
-        console.log(`✅ Finale Liste: ${sortedWebcams.length} Kameras werden gesendet.`);
-        res.json({ webcams: sortedWebcams });
+// Optional: Hier schon eine Vor-Sortierung (Absoluter Abstand zu 0° am kleinsten = zuerst)
+uniqueWebcams.sort((a, b) => Math.abs(a.sunAlt) - Math.abs(b.sunAlt));
+
+console.log(`✅ Finale Liste: ${uniqueWebcams.length} Kameras werden gesendet.`);
+res.json({ webcams: uniqueWebcams });
 
     } catch (error) {
         console.error("❌ Kritischer Fehler:", error);
