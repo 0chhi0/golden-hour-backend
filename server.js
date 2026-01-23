@@ -24,15 +24,15 @@ function isInGoldenHour(lat, lng, now) {
     return altitude >= GOLDEN_HOUR_MIN && altitude <= GOLDEN_HOUR_MAX;
 }
 
-// Finde Golden Hour Zonen auf der Welt (feiner Grid)
+// Finde Golden Hour Zonen auf der Welt (BREITERE Zonen für mehr Abdeckung)
 function findGoldenHourZones(now) {
     const zones = [];
-    const latStep = 15;  // 15° Schritte (feiner als vorher)
-    const lngStep = 15;
+    const latStep = 20;  // 20° statt 15° (weniger, aber größere Zonen)
+    const lngStep = 20;  // 20° statt 15°
     
     console.log('🔍 Scanne Weltkarte für Golden Hour Zonen...');
     
-    for (let lat = -75; lat <= 75; lat += latStep) {
+    for (let lat = -70; lat <= 70; lat += latStep) {
         for (let lng = -180; lng < 180; lng += lngStep) {
             // Prüfe Mittelpunkt der Zone
             const midLat = lat + latStep / 2;
@@ -54,9 +54,9 @@ function findGoldenHourZones(now) {
     return zones;
 }
 
-// Lade Webcams für eine Zone
-async function fetchZoneWebcams(zone, limit = 50) {
-    const url = `https://api.windy.com/webcams/api/v3/webcams?limit=${limit}&box=${zone.box}&include=location,images,player`;
+// Lade Webcams für eine Zone (mit Offset für mehr Ergebnisse)
+async function fetchZoneWebcams(zone, limit = 50, offset = 0) {
+    const url = `https://api.windy.com/webcams/api/v3/webcams?limit=${limit}&offset=${offset}&box=${zone.box}&include=location,images,player,urls`;
     
     try {
         const response = await fetch(url, {
@@ -99,29 +99,40 @@ async function fetchGoldenHourWebcams() {
     const allWebcams = new Map();
     let zoneCount = 0;
     
-    // Batch-Verarbeitung: 5 Zonen gleichzeitig
-    for (let i = 0; i < zones.length; i += 5) {
-        const batch = zones.slice(i, i + 5);
+    // Batch-Verarbeitung: 3 Zonen gleichzeitig (weniger parallel = weniger Duplikate)
+    for (let i = 0; i < zones.length; i += 3) {
+        const batch = zones.slice(i, i + 3);
         
-        const promises = batch.map(zone => fetchZoneWebcams(zone));
+        // Pro Zone: 2 Seiten à 50 = 100 Webcams
+        const promises = batch.flatMap(zone => [
+            fetchZoneWebcams(zone, 50, 0),  // Seite 1
+            fetchZoneWebcams(zone, 50, 50)  // Seite 2
+        ]);
+        
         const results = await Promise.all(promises);
         
-        results.forEach((webcams, idx) => {
-            if (webcams.length > 0) {
+        // Verarbeite die Ergebnisse paarweise (je 2 pro Zone)
+        for (let j = 0; j < results.length; j += 2) {
+            const page1 = results[j] || [];
+            const page2 = results[j + 1] || [];
+            const zoneWebcams = [...page1, ...page2];
+            
+            if (zoneWebcams.length > 0) {
                 zoneCount++;
-                console.log(`  ✅ Zone ${i + idx + 1}: ${webcams.length} Webcams`);
+                const zoneIdx = i + Math.floor(j / 2);
+                console.log(`  ✅ Zone ${zoneIdx + 1}: ${zoneWebcams.length} Webcams`);
                 
-                webcams.forEach(w => {
-                    // Nur Webcams mit Bildern
-                    if (w.images?.current) {
+                zoneWebcams.forEach(w => {
+                    // Nur Webcams mit Bildern UND Video/Stream
+                    if (w.images?.current && w.player && (w.player.live || w.player.day)) {
                         allWebcams.set(w.webcamId, w);
                     }
                 });
             }
-        });
+        }
         
-        // Pause zwischen Batches
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Längere Pause zwischen Batches
+        await new Promise(resolve => setTimeout(resolve, 300));
     }
     
     console.log(`\n📊 Gesamt vor Filterung: ${allWebcams.size} einzigartige Webcams`);
