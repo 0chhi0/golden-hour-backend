@@ -8,9 +8,14 @@ app.use(cors());
 
 const WINDY_KEY = process.env.WINDY_API_KEY || process.env.WINDY_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
 
-// EXAKTE Golden Hour Definition (wie im Frontend)
-const GOLDEN_HOUR_MIN = -6;  // Sonnenaufgang
-const GOLDEN_HOUR_MAX = 6;   // Sonnenuntergang
+// EXAKTE Golden Hour Definition
+const GOLDEN_HOUR_MIN = -6;
+const GOLDEN_HOUR_MAX = 6;
+
+// Grid-Konfiguration
+const GRID_SIZE = 10;  // 10° × 10° Boxen
+const PAGES_PER_BOX = 2;  // 2 Seiten à 50 = 100 Webcams max pro Box
+const BATCH_SIZE = 5;  // 5 Boxen parallel verarbeiten
 
 // Cache
 let webcamCache = [];
@@ -24,54 +29,88 @@ function isInGoldenHour(lat, lng, now) {
     return altitude >= GOLDEN_HOUR_MIN && altitude <= GOLDEN_HOUR_MAX;
 }
 
-// Finde Golden Hour Zonen auf der Welt (BREITERE Zonen für mehr Abdeckung)
-function findGoldenHourZones(now) {
-    const zones = [];
-    const latStep = 20;  // 20° statt 15° (weniger, aber größere Zonen)
-    const lngStep = 20;  // 20° statt 15°
+// Generiere 10° Grid Boxen
+function generateGridBoxes() {
+    const boxes = [];
     
-    console.log('🔍 Scanne Weltkarte für Golden Hour Zonen...');
-    
-    for (let lat = -70; lat <= 70; lat += latStep) {
-        for (let lng = -180; lng < 180; lng += lngStep) {
-            // Prüfe Mittelpunkt der Zone
-            const midLat = lat + latStep / 2;
-            const midLng = lng + lngStep / 2;
-            
-            if (isInGoldenHour(midLat, midLng, now)) {
-                zones.push({
-                    lat1: lat,
-                    lng1: lng,
-                    lat2: lat + latStep,
-                    lng2: lng + lngStep,
-                    box: `${lat},${lng},${lat + latStep},${lng + lngStep}`
-                });
-            }
+    for (let lat = -80; lat < 80; lat += GRID_SIZE) {
+        for (let lng = -180; lng < 180; lng += GRID_SIZE) {
+            boxes.push({
+                lat1: lat,
+                lng1: lng,
+                lat2: lat + GRID_SIZE,
+                lng2: lng + GRID_SIZE,
+                centerLat: lat + GRID_SIZE / 2,
+                centerLng: lng + GRID_SIZE / 2,
+                box: `${lat},${lng},${lat + GRID_SIZE},${lng + GRID_SIZE}`
+            });
         }
     }
     
-    console.log(`📍 ${zones.length} aktive Golden Hour Zonen gefunden`);
-    return zones;
+    return boxes;
 }
 
-// Lade Webcams für eine Zone (mit Offset für mehr Ergebnisse)
-async function fetchZoneWebcams(zone, limit = 50, offset = 0) {
-    const url = `https://api.windy.com/webcams/api/v3/webcams?limit=${limit}&offset=${offset}&box=${zone.box}&include=location,images,player,urls`;
+// Finde aktive Grid-Boxen (die in Golden Hour sind)
+function findActiveBoxes(now) {
+    const allBoxes = generateGridBoxes();
     
-    try {
-        const response = await fetch(url, {
-            headers: { 'x-windy-api-key': WINDY_KEY }
-        });
+    const activeBoxes = allBoxes.filter(box => {
+        // Prüfe Zentrum der Box
+        return isInGoldenHour(box.centerLat, box.centerLng, now);
+    });
+    
+    console.log(`📍 ${activeBoxes.length} von ${allBoxes.length} Boxen in Golden Hour (${GRID_SIZE}° Grid)`);
+    return activeBoxes;
+}
+
+// Lade Webcams für eine Box mit Paginierung
+async function fetchBoxWebcams(box, maxPages = PAGES_PER_BOX) {
+    const webcams = [];
+    
+    for (let page = 0; page < maxPages; page++) {
+        const offset = page * 50;
+        const url = `https://api.windy.com/webcams/api/v3/webcams?limit=50&offset=${offset}&box=${box.box}&include=location,images,player,urls`;
         
-        if (response.ok) {
-            const data = await response.json();
-            return data.webcams || [];
+        try {
+            const response = await fetch(url, {
+                headers: { 'x-windy-api-key': WINDY_KEY }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                
+                if (!data.webcams || data.webcams.length === 0) {
+                    break;  // Keine weiteren Seiten
+                }
+                
+                // Nur Webcams mit Bildern UND Player
+                const valid = data.webcams.filter(w => 
+                    w.images?.current && w.player && (w.player.live || w.player.day)
+                );
+                
+                webcams.push(...valid);
+                
+                // Wenn weniger als 50, sind wir am Ende
+                if (data.webcams.length < 50) {
+                    break;
+                }
+            } else {
+                console.log(`    ⚠️ HTTP ${response.status} bei Offset ${offset}`);
+                break;
+            }
+            
+            // Kleine Pause zwischen Seiten
+            if (page < maxPages - 1) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+            
+        } catch (error) {
+            console.error(`    ❌ Offset ${offset}: ${error.message}`);
+            break;
         }
-    } catch (error) {
-        console.error(`❌ Zone ${zone.box}: ${error.message}`);
     }
     
-    return [];
+    return webcams;
 }
 
 // Hauptfunktion: Lade und filtere Webcams
@@ -85,60 +124,64 @@ async function fetchGoldenHourWebcams() {
     }
     
     console.log('\n🌅 ========================================');
-    console.log('   Golden Hour Webcam Scan');
+    console.log('   Golden Hour Webcam Scan - 10° Grid');
     console.log('🌅 ========================================\n');
+    console.log(`   Grid-Größe: ${GRID_SIZE}° × ${GRID_SIZE}°`);
+    console.log(`   Pages pro Box: ${PAGES_PER_BOX}`);
+    console.log(`   Batch-Größe: ${BATCH_SIZE}\n`);
     
     const currentTime = new Date();
-    const zones = findGoldenHourZones(currentTime);
+    const activeBoxes = findActiveBoxes(currentTime);
     
-    if (zones.length === 0) {
-        console.log('⚠️  Keine Golden Hour Zonen gefunden (sollte nicht passieren)');
+    if (activeBoxes.length === 0) {
+        console.log('⚠️  Keine aktiven Boxen gefunden');
         return [];
     }
     
     const allWebcams = new Map();
-    let zoneCount = 0;
+    let boxesProcessed = 0;
+    let totalRequests = 0;
     
-    // Batch-Verarbeitung: 3 Zonen gleichzeitig (weniger parallel = weniger Duplikate)
-    for (let i = 0; i < zones.length; i += 3) {
-        const batch = zones.slice(i, i + 3);
+    console.log('🔄 Starte Batch-Verarbeitung...\n');
+    
+    // Batch-Verarbeitung
+    for (let i = 0; i < activeBoxes.length; i += BATCH_SIZE) {
+        const batch = activeBoxes.slice(i, i + BATCH_SIZE);
+        const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(activeBoxes.length / BATCH_SIZE);
         
-        // Pro Zone: 2 Seiten à 50 = 100 Webcams
-        const promises = batch.flatMap(zone => [
-            fetchZoneWebcams(zone, 50, 0),  // Seite 1
-            fetchZoneWebcams(zone, 50, 50)  // Seite 2
-        ]);
+        console.log(`📦 Batch ${batchNum}/${totalBatches} (${batch.length} Boxen):`);
         
+        const promises = batch.map(box => fetchBoxWebcams(box));
         const results = await Promise.all(promises);
         
-        // Verarbeite die Ergebnisse paarweise (je 2 pro Zone)
-        for (let j = 0; j < results.length; j += 2) {
-            const page1 = results[j] || [];
-            const page2 = results[j + 1] || [];
-            const zoneWebcams = [...page1, ...page2];
+        results.forEach((webcams, idx) => {
+            const box = batch[idx];
+            boxesProcessed++;
             
-            if (zoneWebcams.length > 0) {
-                zoneCount++;
-                const zoneIdx = i + Math.floor(j / 2);
-                console.log(`  ✅ Zone ${zoneIdx + 1}: ${zoneWebcams.length} Webcams`);
+            if (webcams.length > 0) {
+                totalRequests += Math.ceil(webcams.length / 50);
+                console.log(`  ✅ Box [${box.lat1}°,${box.lng1}°]: ${webcams.length} Webcams`);
                 
-                zoneWebcams.forEach(w => {
-                    // Nur Webcams mit Bildern UND Video/Stream
-                    if (w.images?.current && w.player && (w.player.live || w.player.day)) {
-                        allWebcams.set(w.webcamId, w);
-                    }
-                });
+                webcams.forEach(w => allWebcams.set(w.webcamId, w));
+            } else {
+                console.log(`  ⚪ Box [${box.lat1}°,${box.lng1}°]: leer`);
             }
-        }
+        });
         
-        // Längere Pause zwischen Batches
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // Pause zwischen Batches
+        if (i + BATCH_SIZE < activeBoxes.length) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
     }
     
-    console.log(`\n📊 Gesamt vor Filterung: ${allWebcams.size} einzigartige Webcams`);
-    console.log('🔍 Führe PRÄZISE Filterung durch...\n');
+    console.log(`\n📊 Scan-Statistik:`);
+    console.log(`   Boxen verarbeitet: ${boxesProcessed}`);
+    console.log(`   API-Requests: ~${totalRequests}`);
+    console.log(`   Webcams gefunden: ${allWebcams.size}`);
+    console.log('\n🔍 Führe PRÄZISE Filterung durch...\n');
     
-    // KRITISCHER SCHRITT: Präzise Filterung jeder einzelnen Webcam
+    // PRÄZISE Filterung: Jede Webcam einzeln prüfen
     const filtered = [];
     let filteredOut = 0;
     
@@ -146,9 +189,7 @@ async function fetchGoldenHourWebcams() {
         const sunPos = SunCalc.getPosition(currentTime, webcam.location.latitude, webcam.location.longitude);
         const altitude = sunPos.altitude * 180 / Math.PI;
         
-        // NUR Webcams in der EXAKTEN Golden Hour Range
         if (altitude >= GOLDEN_HOUR_MIN && altitude <= GOLDEN_HOUR_MAX) {
-            // Speichere Sonnenstand für Frontend
             webcam.sunAlt = altitude;
             filtered.push(webcam);
         } else {
@@ -156,29 +197,43 @@ async function fetchGoldenHourWebcams() {
         }
     });
     
-    // Sortiere nach optimalem Sonnenstand (nahe -1.5° ist ideal)
+    // Sortiere nach optimalem Sonnenstand
     filtered.sort((a, b) => {
-        const optimalAngle = -1.5;  // Kurz nach Sonnenaufgang / vor Sonnenuntergang
+        const optimalAngle = -1.5;
         return Math.abs(a.sunAlt - optimalAngle) - Math.abs(b.sunAlt - optimalAngle);
     });
     
     console.log(`✅ Nach Filterung: ${filtered.length} Webcams in Golden Hour`);
     console.log(`🚫 Herausgefiltert: ${filteredOut} Webcams (außerhalb ${GOLDEN_HOUR_MIN}° bis ${GOLDEN_HOUR_MAX}°)`);
     
-    // Statistik
-    const byCountry = {};
+    // Geografische Verteilung
+    const byContinent = {
+        'Europa': 0,
+        'Asien': 0,
+        'Afrika': 0,
+        'Nordamerika': 0,
+        'Südamerika': 0,
+        'Ozeanien': 0
+    };
+    
     filtered.forEach(w => {
-        const country = w.location.country || 'Unknown';
-        byCountry[country] = (byCountry[country] || 0) + 1;
+        const lng = w.location.longitude;
+        const lat = w.location.latitude;
+        
+        if (lng >= -25 && lng <= 40 && lat >= 35) byContinent['Europa']++;
+        else if (lng >= 25 && lng <= 150) byContinent['Asien']++;
+        else if (lng >= -20 && lng <= 55 && lat < 35 && lat > -35) byContinent['Afrika']++;
+        else if (lng >= -170 && lng <= -50 && lat >= 15) byContinent['Nordamerika']++;
+        else if (lng >= -85 && lng <= -35 && lat < 15) byContinent['Südamerika']++;
+        else if (lng >= 110 || (lng >= -180 && lng <= -160)) byContinent['Ozeanien']++;
     });
     
-    console.log('\n🌍 Top 10 Länder:');
-    Object.entries(byCountry)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10)
-        .forEach(([country, count]) => {
-            console.log(`   ${country}: ${count}`);
-        });
+    console.log('\n🌍 Geografische Verteilung:');
+    Object.entries(byContinent).forEach(([continent, count]) => {
+        if (count > 0) {
+            console.log(`   ${continent}: ${count} Webcams`);
+        }
+    });
     
     webcamCache = filtered;
     lastCacheUpdate = now;
@@ -190,23 +245,25 @@ async function fetchGoldenHourWebcams() {
 
 // Health Check
 app.get('/', async (req, res) => {
+    const activeBoxes = findActiveBoxes(new Date());
+    
     res.json({
         status: 'ok',
-        message: 'Golden Hour Backend - Präzise Filterung',
-        version: '2.0',
+        message: 'Golden Hour Backend - 10° Grid System',
+        version: '3.0',
+        grid: {
+            size: `${GRID_SIZE}° × ${GRID_SIZE}°`,
+            activeBoxes: activeBoxes.length,
+            totalBoxes: (160 / GRID_SIZE) * (360 / GRID_SIZE),
+            pagesPerBox: PAGES_PER_BOX
+        },
         goldenHour: {
-            range: `${GOLDEN_HOUR_MIN}° bis ${GOLDEN_HOUR_MAX}°`,
-            description: 'Sonnenstand für optimale Golden Hour'
+            range: `${GOLDEN_HOUR_MIN}° bis ${GOLDEN_HOUR_MAX}°`
         },
         cache: {
             webcams: webcamCache.length,
             lastUpdate: webcamCache.length > 0 ? new Date(lastCacheUpdate).toISOString() : null,
             ageMinutes: webcamCache.length > 0 ? Math.floor((Date.now() - lastCacheUpdate) / 60000) : null
-        },
-        endpoints: {
-            webcams: '/api/webcams',
-            stats: '/api/stats',
-            refresh: '/api/refresh (POST)'
         }
     });
 });
@@ -223,6 +280,7 @@ app.get('/api/webcams', async (req, res) => {
                 cached: (Date.now() - lastCacheUpdate) < CACHE_DURATION,
                 cacheAgeMinutes: Math.floor((Date.now() - lastCacheUpdate) / 60000),
                 goldenHourRange: `${GOLDEN_HOUR_MIN}° bis ${GOLDEN_HOUR_MAX}°`,
+                gridSize: `${GRID_SIZE}°`,
                 timestamp: new Date().toISOString()
             }
         });
@@ -238,43 +296,34 @@ app.get('/api/webcams', async (req, res) => {
 // Statistik API
 app.get('/api/stats', async (req, res) => {
     const webcams = await fetchGoldenHourWebcams();
+    const activeBoxes = findActiveBoxes(new Date());
     
     const byCountry = {};
-    const altitudeDistribution = { '-6to-4': 0, '-4to-2': 0, '-2to0': 0, '0to2': 0, '2to4': 0, '4to6': 0 };
-    
     webcams.forEach(w => {
-        // Länder
         const country = w.location.country || 'Unknown';
         byCountry[country] = (byCountry[country] || 0) + 1;
-        
-        // Sonnenstand-Verteilung
-        const alt = w.sunAlt;
-        if (alt >= -6 && alt < -4) altitudeDistribution['-6to-4']++;
-        else if (alt >= -4 && alt < -2) altitudeDistribution['-4to-2']++;
-        else if (alt >= -2 && alt < 0) altitudeDistribution['-2to0']++;
-        else if (alt >= 0 && alt < 2) altitudeDistribution['0to2']++;
-        else if (alt >= 2 && alt < 4) altitudeDistribution['2to4']++;
-        else if (alt >= 4 && alt <= 6) altitudeDistribution['4to6']++;
     });
     
     res.json({
         total: webcams.length,
-        goldenHourRange: `${GOLDEN_HOUR_MIN}° bis ${GOLDEN_HOUR_MAX}°`,
-        cacheAge: Math.floor((Date.now() - lastCacheUpdate) / 60000),
+        grid: {
+            size: `${GRID_SIZE}°`,
+            activeBoxes: activeBoxes.length
+        },
         byCountry: Object.entries(byCountry)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 20)
             .map(([country, count]) => ({ country, count })),
-        altitudeDistribution: altitudeDistribution,
-        sampleWebcams: webcams.slice(0, 5).map(w => ({
+        sampleWebcams: webcams.slice(0, 10).map(w => ({
             title: w.title,
             country: w.location.country,
-            sunAltitude: w.sunAlt.toFixed(2) + '°'
+            sunAltitude: w.sunAlt.toFixed(2) + '°',
+            coordinates: `${w.location.latitude.toFixed(2)}, ${w.location.longitude.toFixed(2)}`
         }))
     });
 });
 
-// Manueller Cache-Refresh
+// Cache-Refresh
 app.post('/api/refresh', async (req, res) => {
     console.log('🔄 Manueller Cache-Refresh');
     webcamCache = [];
@@ -284,8 +333,7 @@ app.post('/api/refresh', async (req, res) => {
     
     res.json({
         success: true,
-        webcams: webcams.length,
-        message: 'Cache erfolgreich aktualisiert'
+        webcams: webcams.length
     });
 });
 
@@ -293,14 +341,14 @@ app.post('/api/refresh', async (req, res) => {
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', async () => {
     console.log('\n🌅 ========================================');
-    console.log('   Golden Hour Backend v2.0');
+    console.log('   Golden Hour Backend v3.0');
+    console.log('   10° Grid System');
     console.log('🌅 ========================================');
     console.log(`   Port: ${PORT}`);
+    console.log(`   Grid: ${GRID_SIZE}° × ${GRID_SIZE}°`);
     console.log(`   Golden Hour: ${GOLDEN_HOUR_MIN}° bis ${GOLDEN_HOUR_MAX}°`);
-    console.log('   Präzise Filterung: AKTIV');
     console.log('\n   Lade initiale Webcams...\n');
     
-    // Initial laden
     await fetchGoldenHourWebcams();
     
     console.log('\n✅ Backend bereit!\n');
