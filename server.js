@@ -8,14 +8,18 @@ app.use(cors());
 
 const WINDY_KEY = process.env.WINDY_API_KEY || process.env.WINDY_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
 
-// EXAKTE Golden Hour Definition
-const GOLDEN_HOUR_MIN = -6;
-const GOLDEN_HOUR_MAX = 6;
+// ERWEITERTE Golden Hour Definition (realistisch für gutes Licht)
+const GOLDEN_HOUR_MIN = -8;  // Erweitert für mehr Abdeckung
+const GOLDEN_HOUR_MAX = 8;   // Erweitert für mehr Abdeckung
 
-// Grid-Konfiguration
-const GRID_SIZE = 10;  // 10° × 10° Boxen
+// Premium Golden Hour (besonders gutes Licht)
+const PREMIUM_MIN = -6;
+const PREMIUM_MAX = 6;
+
+// Grid-Konfiguration - OPTIMIERT
+const GRID_SIZE = 5;  // 5° × 5° Boxen (550km × 550km)
 const PAGES_PER_BOX = 2;  // 2 Seiten à 50 = 100 Webcams max pro Box
-const BATCH_SIZE = 5;  // 5 Boxen parallel verarbeiten
+const BATCH_SIZE = 8;  // 8 Boxen parallel für schnelleren Scan
 
 // Cache
 let webcamCache = [];
@@ -183,6 +187,7 @@ async function fetchGoldenHourWebcams() {
     
     // PRÄZISE Filterung: Jede Webcam einzeln prüfen
     const filtered = [];
+    const premium = [];
     let filteredOut = 0;
     
     allWebcams.forEach(webcam => {
@@ -191,19 +196,35 @@ async function fetchGoldenHourWebcams() {
         
         if (altitude >= GOLDEN_HOUR_MIN && altitude <= GOLDEN_HOUR_MAX) {
             webcam.sunAlt = altitude;
+            
+            // Markiere Premium Golden Hour
+            if (altitude >= PREMIUM_MIN && altitude <= PREMIUM_MAX) {
+                webcam.isPremium = true;
+                premium.push(webcam);
+            } else {
+                webcam.isPremium = false;
+            }
+            
             filtered.push(webcam);
         } else {
             filteredOut++;
         }
     });
     
-    // Sortiere nach optimalem Sonnenstand
+    // Sortiere: Premium zuerst, dann nach optimalem Sonnenstand
     filtered.sort((a, b) => {
+        // Premium Golden Hour zuerst
+        if (a.isPremium && !b.isPremium) return -1;
+        if (!a.isPremium && b.isPremium) return 1;
+        
+        // Dann nach optimalem Winkel
         const optimalAngle = -1.5;
         return Math.abs(a.sunAlt - optimalAngle) - Math.abs(b.sunAlt - optimalAngle);
     });
     
     console.log(`✅ Nach Filterung: ${filtered.length} Webcams in Golden Hour`);
+    console.log(`   ⭐ Premium (${PREMIUM_MIN}° bis ${PREMIUM_MAX}°): ${premium.length}`);
+    console.log(`   🌅 Extended (${GOLDEN_HOUR_MIN}° bis ${GOLDEN_HOUR_MAX}°): ${filtered.length - premium.length}`);
     console.log(`🚫 Herausgefiltert: ${filteredOut} Webcams (außerhalb ${GOLDEN_HOUR_MIN}° bis ${GOLDEN_HOUR_MAX}°)`);
     
     // Geografische Verteilung
@@ -249,8 +270,8 @@ app.get('/', async (req, res) => {
     
     res.json({
         status: 'ok',
-        message: 'Golden Hour Backend - 10° Grid System',
-        version: '3.0',
+        message: 'Golden Hour Backend - 5° Grid System',
+        version: '4.0',
         grid: {
             size: `${GRID_SIZE}° × ${GRID_SIZE}°`,
             activeBoxes: activeBoxes.length,
@@ -258,10 +279,12 @@ app.get('/', async (req, res) => {
             pagesPerBox: PAGES_PER_BOX
         },
         goldenHour: {
-            range: `${GOLDEN_HOUR_MIN}° bis ${GOLDEN_HOUR_MAX}°`
+            range: `${GOLDEN_HOUR_MIN}° bis ${GOLDEN_HOUR_MAX}°`,
+            premiumRange: `${PREMIUM_MIN}° bis ${PREMIUM_MAX}°`
         },
         cache: {
             webcams: webcamCache.length,
+            premium: webcamCache.filter(w => w.isPremium).length,
             lastUpdate: webcamCache.length > 0 ? new Date(lastCacheUpdate).toISOString() : null,
             ageMinutes: webcamCache.length > 0 ? Math.floor((Date.now() - lastCacheUpdate) / 60000) : null
         }
@@ -341,12 +364,13 @@ app.post('/api/refresh', async (req, res) => {
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', async () => {
     console.log('\n🌅 ========================================');
-    console.log('   Golden Hour Backend v3.0');
-    console.log('   10° Grid System');
+    console.log('   Golden Hour Backend v4.0');
+    console.log('   5° Precision Grid + Extended Range');
     console.log('🌅 ========================================');
     console.log(`   Port: ${PORT}`);
-    console.log(`   Grid: ${GRID_SIZE}° × ${GRID_SIZE}°`);
+    console.log(`   Grid: ${GRID_SIZE}° × ${GRID_SIZE}° (550km × 550km)`);
     console.log(`   Golden Hour: ${GOLDEN_HOUR_MIN}° bis ${GOLDEN_HOUR_MAX}°`);
+    console.log(`   Premium: ${PREMIUM_MIN}° bis ${PREMIUM_MAX}° ⭐`);
     console.log('\n   Lade initiale Webcams...\n');
     
     await fetchGoldenHourWebcams();
