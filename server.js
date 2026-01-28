@@ -1,47 +1,50 @@
-// 1. IMPORTE (Ganz oben)
 import express from 'express';
 import axios from 'axios';
 import cors from 'cors';
 
-// 2. INITIALISIERUNG
 const app = express();
 const port = process.env.PORT || 3000;
 
-// 3. MIDDLEWARE
 app.use(cors());
 app.use(express.json());
 
-// --- START NEUER TEST-CODE ---
+// DER TEST-ENDPUNKT
 app.get('/test-windy-nearby', async (req, res) => {
     try {
+        console.log("Starte Windy API Test für Tokio...");
         const testUrl = "https://api.windy.com/webcams/api/v3/webcams?nearby=35.68,139.76,200&limit=5&include=location";
+        
         const response = await axios.get(testUrl, {
             headers: { 'x-windy-api-key': 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL' }
         });
+
+        const cams = response.data.webcams || [];
+        
         res.json({ 
             status: "Erfolg", 
-            message: "Nearby-Abfrage an Tokio gesendet",
-            data: response.data.webcams.map(c => ({
+            message: `Gefunden: ${cams.length} Webcams`,
+            data: cams.map(c => ({
                 title: c.title,
                 country: c.location.country_code,
-                coords: [c.location.latitude, c.location.longitude]
+                lat: c.location.latitude,
+                lon: c.location.longitude
             }))
         });
     } catch (error) {
+        console.error("API Fehler:", error.message);
         res.status(500).json({ 
-            error: error.message,
-            details: error.response?.data || "Keine weiteren Details"
+            status: "Fehler", 
+            message: error.message,
+            details: error.response?.data 
         });
     }
 });
-// --- ENDE NEUER TEST-CODE ---
 
-// 4. DEINE BESTEHENDEN ROUTEN (Falls du schon welche hast)
+// BASIS ROUTE
 app.get('/', (req, res) => {
-    res.send('Server läuft!');
+    res.send('Golden Hour Backend läuft! Teste /test-windy-nearby');
 });
 
-// 5. SERVER STARTEN (Ganz unten)
 app.listen(port, () => {
-    console.log(`Server läuft auf Port ${port}`);
+    console.log(`Server aktiv auf Port ${port}`);
 });
