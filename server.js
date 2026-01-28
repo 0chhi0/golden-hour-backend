@@ -6,70 +6,63 @@ import SunCalc from 'suncalc';
 const app = express();
 app.use(cors());
 
-// Key-Check: Nutzt Umgebungsvariable oder Fallback
-const WINDY_KEY = process.env.WINDY_API_KEY || process.env.WINDY_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
-
-// Golden Hour Definition
-const GOLDEN_HOUR_MIN = -8;
-const GOLDEN_HOUR_MAX = 8;
+// Wir nutzen deinen Key direkt als Fallback
+const WINDY_KEY = process.env.WINDY_API_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
 
 // ========================================
-// DEBUG-ROUTE (Test ohne Filter)
+// 1. DER DEBUG-LINK (Muss funktionieren!)
 // ========================================
-app.get('/debug-windy', async (req, res) => {
+app.get('/debug', async (req, res) => {
     try {
-        console.log("--- DEBUG START: Japan Test ---");
-        // Wir testen einen fixen Wert (Japan), um die Verbindung zu prüfen
-        const url = "https://api.windy.com/webcams/api/v3/webcams?country=JP&limit=5&include=location,images,categories";
+        console.log("Sende Test-Anfrage an Windy...");
+        // Wir fragen einfach 10 Kameras aus den USA ab, ohne Zeitfilter
+        const url = "https://api.windy.com/webcams/api/v3/webcams?country=US&limit=10&include=location,images";
         
         const response = await fetch(url, {
             headers: { 'x-windy-api-key': WINDY_KEY }
         });
 
         const data = await response.json();
-        
         res.json({
-            status: "Backend läuft",
-            windy_api_status: response.status,
-            key_preview: WINDY_KEY.substring(0, 5) + "...",
-            ergebnisse: data.webcams || []
+            status: "Backend ist online",
+            key_verwendet: WINDY_KEY.substring(0, 5) + "...",
+            windy_antwort_code: response.status,
+            webcams: data.webcams || []
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ fehler: error.message });
     }
 });
 
 // ========================================
-// HAUPT-LOGIK (Mit Golden Hour Filter)
+// 2. DIE GOLDEN HOUR LOGIK
 // ========================================
 app.get('/webcams', async (req, res) => {
     try {
-        // Hier simulieren wir einen Testpunkt in den USA (Kalifornien), 
-        // falls dein Lon/Lat Filter aktuell nichts findet
-        const testUrl = "https://api.windy.com/webcams/api/v3/webcams?nearby=34.05,-118.24,500&limit=10&include=location,images,categories";
+        // Wir nehmen eine Region, die groß genug ist (z.B. Kalifornien)
+        const url = "https://api.windy.com/webcams/api/v3/webcams?region=US.CA&limit=50&include=location,images";
         
-        const response = await fetch(testUrl, {
+        const response = await fetch(url, {
             headers: { 'x-windy-api-key': WINDY_KEY }
         });
 
         const data = await response.json();
-        const allWebcams = data.webcams || [];
-
-        // Filtern nach Golden Hour
         const now = new Date();
-        const goldenHourCams = allWebcams.filter(cam => {
+        
+        // Filterung nach Sonnenstand (deine Original-Logik)
+        const goldenHourCams = (data.webcams || []).filter(cam => {
             const sunPos = SunCalc.getPosition(now, cam.location.latitude, cam.location.longitude);
             const altitudeDeg = sunPos.altitude * (180 / Math.PI);
-            return altitudeDeg >= GOLDEN_HOUR_MIN && altitudeDeg <= GOLDEN_HOUR_MAX;
+            // Golden Hour: -8 bis +8 Grad
+            return altitudeDeg >= -8 && altitudeDeg <= 8;
         });
 
         res.json({
-            info: "Abfrage USA Westküste",
-            total_gefundene_cams: allWebcams.length,
+            region: "California",
+            gefundene_kameras_total: data.webcams?.length || 0,
             davon_in_golden_hour: goldenHourCams.length,
             webcams: goldenHourCams
         });
-
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -77,5 +70,5 @@ app.get('/webcams', async (req, res) => {
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Backend aktiv auf Port ${PORT}`);
+    console.log(`Backend läuft auf Port ${PORT}`);
 });
