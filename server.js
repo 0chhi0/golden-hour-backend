@@ -616,6 +616,13 @@ app.get('/', async (req, res) => {
             premium: webcamCache.filter(w => w.isPremium).length,
             lastUpdate: webcamCache.length > 0 ? new Date(lastCacheUpdate).toISOString() : null,
             ageMinutes: webcamCache.length > 0 ? Math.floor((Date.now() - lastCacheUpdate) / 60000) : null
+        },
+        testEndpoints: {
+            singleCountry: '/api/test/country/:code (z.B. /api/test/country/DE)',
+            multipleCountries: '/api/test/countries/:codes (z.B. /api/test/countries/DE,CH,AT)',
+            singleRegion: '/api/test/region/:code (z.B. /api/test/region/US-CA)',
+            multipleRegions: '/api/test/regions/:codes (z.B. /api/test/regions/US-CA,US-NY,US-FL)',
+            nearbyVsRegion: '/api/test/compare'
         }
     });
 });
@@ -667,6 +674,289 @@ app.post('/api/refresh', async (req, res) => {
     lastCacheUpdate = 0;
     const webcams = await fetchGoldenHourWebcams();
     res.json({ success: true, webcams: webcams.length });
+});
+
+// ========================================
+// TEST ENDPOINTS
+// ========================================
+
+app.get('/api/test/country/:code', async (req, res) => {
+    const { code } = req.params;
+    const limit = req.query.limit || 50;
+    const url = `https://api.windy.com/webcams/api/v3/list?countries=${code}&limit=${limit}&include=location,images,player`;
+    
+    console.log(`\n🧪 TEST: Single Country`);
+    console.log(`   Code: ${code}`);
+    console.log(`   URL: ${url}\n`);
+    
+    try {
+        const response = await fetch(url, {
+            headers: { 'x-windy-api-key': WINDY_KEY }
+        });
+        
+        const data = await response.json();
+        const webcams = data.result?.webcams || [];
+        
+        // Analyse
+        const countries = {};
+        const regions = {};
+        webcams.forEach(w => {
+            const country = w.location?.country || 'Unknown';
+            const region = w.location?.region || 'Unknown';
+            countries[country] = (countries[country] || 0) + 1;
+            regions[region] = (regions[region] || 0) + 1;
+        });
+        
+        console.log(`✅ Erfolg: ${webcams.length} Webcams`);
+        console.log(`   Länder: ${Object.keys(countries).join(', ')}`);
+        console.log(`   Regionen: ${Object.keys(regions).length}\n`);
+        
+        res.json({
+            test: 'single_country',
+            code: code,
+            url: url,
+            status: response.status,
+            success: response.ok,
+            total: data.result?.total || 0,
+            returned: webcams.length,
+            countries: countries,
+            regions: Object.keys(regions).length,
+            regionList: regions,
+            sample: webcams.slice(0, 5).map(w => ({
+                id: w.webcamId,
+                title: w.title,
+                location: `${w.location?.city}, ${w.location?.region}, ${w.location?.country}`,
+                coordinates: `${w.location?.latitude.toFixed(2)}, ${w.location?.longitude.toFixed(2)}`,
+                hasLive: !!w.player?.live,
+                hasDay: !!w.player?.day
+            }))
+        });
+        
+    } catch (error) {
+        console.error(`❌ Fehler: ${error.message}\n`);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/test/countries/:codes', async (req, res) => {
+    const { codes } = req.params;
+    const limit = req.query.limit || 50;
+    const url = `https://api.windy.com/webcams/api/v3/list?countries=${codes}&limit=${limit}&include=location,images,player`;
+    
+    console.log(`\n🧪 TEST: Multiple Countries`);
+    console.log(`   Codes: ${codes}`);
+    console.log(`   URL: ${url}\n`);
+    
+    try {
+        const response = await fetch(url, {
+            headers: { 'x-windy-api-key': WINDY_KEY }
+        });
+        
+        const data = await response.json();
+        const webcams = data.result?.webcams || [];
+        
+        const countries = {};
+        webcams.forEach(w => {
+            const country = w.location?.country || 'Unknown';
+            countries[country] = (countries[country] || 0) + 1;
+        });
+        
+        console.log(`✅ Erfolg: ${webcams.length} Webcams`);
+        console.log(`   Verteilung: ${JSON.stringify(countries)}\n`);
+        
+        res.json({
+            test: 'multiple_countries',
+            codes: codes.split(','),
+            url: url,
+            status: response.status,
+            success: response.ok,
+            total: data.result?.total || 0,
+            returned: webcams.length,
+            distribution: countries,
+            sample: webcams.slice(0, 5).map(w => ({
+                id: w.webcamId,
+                title: w.title,
+                country: w.location?.country,
+                region: w.location?.region
+            }))
+        });
+        
+    } catch (error) {
+        console.error(`❌ Fehler: ${error.message}\n`);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/test/region/:code', async (req, res) => {
+    const { code } = req.params;
+    const limit = req.query.limit || 50;
+    const url = `https://api.windy.com/webcams/api/v3/list?regions=${code}&limit=${limit}&include=location,images,player`;
+    
+    console.log(`\n🧪 TEST: Single Region`);
+    console.log(`   Code: ${code}`);
+    console.log(`   URL: ${url}\n`);
+    
+    try {
+        const response = await fetch(url, {
+            headers: { 'x-windy-api-key': WINDY_KEY }
+        });
+        
+        const data = await response.json();
+        const webcams = data.result?.webcams || [];
+        
+        const regions = {};
+        webcams.forEach(w => {
+            const region = w.location?.region || 'Unknown';
+            const regionCode = w.location?.region_code || 'Unknown';
+            regions[regionCode] = (regions[regionCode] || 0) + 1;
+        });
+        
+        console.log(`✅ Erfolg: ${webcams.length} Webcams`);
+        console.log(`   Region-Codes: ${Object.keys(regions).join(', ')}\n`);
+        
+        res.json({
+            test: 'single_region',
+            code: code,
+            url: url,
+            status: response.status,
+            success: response.ok,
+            total: data.result?.total || 0,
+            returned: webcams.length,
+            regionCodes: regions,
+            sample: webcams.slice(0, 5).map(w => ({
+                id: w.webcamId,
+                title: w.title,
+                region: w.location?.region,
+                regionCode: w.location?.region_code,
+                coordinates: `${w.location?.latitude.toFixed(2)}, ${w.location?.longitude.toFixed(2)}`
+            }))
+        });
+        
+    } catch (error) {
+        console.error(`❌ Fehler: ${error.message}\n`);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/test/regions/:codes', async (req, res) => {
+    const { codes } = req.params;
+    const limit = req.query.limit || 50;
+    const url = `https://api.windy.com/webcams/api/v3/list?regions=${codes}&limit=${limit}&include=location,images,player`;
+    
+    console.log(`\n🧪 TEST: Multiple Regions`);
+    console.log(`   Codes: ${codes}`);
+    console.log(`   URL: ${url}\n`);
+    
+    try {
+        const response = await fetch(url, {
+            headers: { 'x-windy-api-key': WINDY_KEY }
+        });
+        
+        const data = await response.json();
+        const webcams = data.result?.webcams || [];
+        
+        const regions = {};
+        webcams.forEach(w => {
+            const regionCode = w.location?.region_code || 'Unknown';
+            regions[regionCode] = (regions[regionCode] || 0) + 1;
+        });
+        
+        console.log(`✅ Erfolg: ${webcams.length} Webcams`);
+        console.log(`   Verteilung: ${JSON.stringify(regions)}\n`);
+        
+        res.json({
+            test: 'multiple_regions',
+            codes: codes.split(','),
+            url: url,
+            status: response.status,
+            success: response.ok,
+            total: data.result?.total || 0,
+            returned: webcams.length,
+            distribution: regions,
+            sample: webcams.slice(0, 5).map(w => ({
+                id: w.webcamId,
+                title: w.title,
+                region: w.location?.region,
+                regionCode: w.location?.region_code
+            }))
+        });
+        
+    } catch (error) {
+        console.error(`❌ Fehler: ${error.message}\n`);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/test/compare', async (req, res) => {
+    console.log(`\n🧪 TEST: Nearby vs Region Vergleich (Kalifornien)\n`);
+    
+    try {
+        // Test 1: Nearby (Los Angeles, 300km)
+        const nearbyUrl = `https://api.windy.com/webcams/api/v3/list?nearby=34.05,-118.24,300&limit=50&include=location,images,player`;
+        const nearbyResponse = await fetch(nearbyUrl, {
+            headers: { 'x-windy-api-key': WINDY_KEY }
+        });
+        const nearbyData = await nearbyResponse.json();
+        const nearbyWebcams = nearbyData.result?.webcams || [];
+        
+        console.log(`📍 Nearby (300km um LA): ${nearbyWebcams.length} Webcams`);
+        
+        // Test 2: Region (California)
+        const regionUrl = `https://api.windy.com/webcams/api/v3/list?regions=US-CA&limit=50&include=location,images,player`;
+        const regionResponse = await fetch(regionUrl, {
+            headers: { 'x-windy-api-key': WINDY_KEY }
+        });
+        const regionData = await regionResponse.json();
+        const regionWebcams = regionData.result?.webcams || [];
+        
+        console.log(`🗺️  Region (US-CA): ${regionWebcams.length} Webcams`);
+        
+        // Überschneidungen
+        const nearbyIds = new Set(nearbyWebcams.map(w => w.webcamId));
+        const regionIds = new Set(regionWebcams.map(w => w.webcamId));
+        const intersection = [...nearbyIds].filter(id => regionIds.has(id));
+        
+        console.log(`🔄 Überschneidung: ${intersection.length} Webcams`);
+        
+        let conclusion = '';
+        if (intersection.length > nearbyWebcams.length * 0.7) {
+            conclusion = '✅ Nearby und Region liefern sehr ähnliche Ergebnisse!';
+        } else if (regionWebcams.length > nearbyWebcams.length * 1.5) {
+            conclusion = `🎯 Region liefert MEHR Webcams (${regionWebcams.length} vs ${nearbyWebcams.length}) - Region ist BESSER!`;
+        } else if (nearbyWebcams.length > regionWebcams.length * 1.5) {
+            conclusion = `📍 Nearby liefert MEHR Webcams (${nearbyWebcams.length} vs ${regionWebcams.length}) - Nearby ist BESSER!`;
+        } else {
+            conclusion = `⚖️ Beide ähnlich gut (${nearbyWebcams.length} vs ${regionWebcams.length})`;
+        }
+        
+        console.log(`${conclusion}\n`);
+        
+        res.json({
+            test: 'nearby_vs_region',
+            nearby: {
+                method: 'nearby=34.05,-118.24,300',
+                total: nearbyWebcams.length,
+                url: nearbyUrl
+            },
+            region: {
+                method: 'regions=US-CA',
+                total: regionWebcams.length,
+                url: regionUrl
+            },
+            comparison: {
+                intersection: intersection.length,
+                intersectionPercent: ((intersection.length / Math.max(nearbyWebcams.length, regionWebcams.length, 1)) * 100).toFixed(1),
+                onlyNearby: nearbyWebcams.length - intersection.length,
+                onlyRegion: regionWebcams.length - intersection.length
+            },
+            conclusion: conclusion,
+            recommendation: regionWebcams.length > nearbyWebcams.length ? 'regions' : 'nearby'
+        });
+        
+    } catch (error) {
+        console.error(`❌ Fehler: ${error.message}\n`);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // ========================================
