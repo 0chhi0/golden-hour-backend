@@ -9,17 +9,15 @@ app.use(cors());
 app.use(express.json());
 
 /**
- * TEST-ENDPUNKT: Deep-Inspect
- * Dieser Endpunkt holt EINE Webcam aus Tokio mit allen verfügbaren Metadaten.
- * Ideal, um zu sehen, wonach wir später filtern können (Categories, Timezone, etc.)
+ * TEST-ENDPUNKT: Deep-Inspect (Korrektur)
+ * Wir nutzen nur die von Windy erlaubten include-Parameter.
  */
 app.get('/test-windy-details', async (req, res) => {
     try {
-        console.log("Starte Deep-Inspect Abfrage für Windy API...");
+        console.log("Starte korrigierte Deep-Inspect Abfrage...");
         
-        // Wir fragen nach Webcams bei Tokio (nearby=35.68,139.76)
-        // WICHTIG: include=location,images,urls,categories,property liefert alle Details
-        const url = "https://api.windy.com/webcams/api/v3/webcams?nearby=35.68,139.76,50&limit=1&include=location,images,urls,categories,property";
+        // Korrigierte URL: 'property' wurde entfernt
+        const url = "https://api.windy.com/webcams/api/v3/webcams?nearby=35.68,139.76,50&limit=1&include=location,images,urls,categories,player";
         
         const response = await axios.get(url, {
             headers: { 
@@ -28,17 +26,17 @@ app.get('/test-windy-details', async (req, res) => {
         });
 
         if (response.data.webcams && response.data.webcams.length > 0) {
-            // Wir geben das komplette erste Objekt zurück
             res.json({
-                beschreibung: "Komplettes Datenmodell einer Windy-Webcam",
+                status: "Erfolg",
+                message: "Hier sind alle verfügbaren Details der Kamera",
                 full_data: response.data.webcams[0]
             });
         } else {
-            res.status(404).json({ message: "Keine Webcam an diesem Ort gefunden." });
+            res.status(404).json({ message: "Keine Webcam gefunden." });
         }
         
     } catch (error) {
-        console.error("Fehler beim API-Abruf:", error.message);
+        console.error("API Fehler:", error.message);
         res.status(500).json({ 
             status: "Fehler", 
             message: error.message,
@@ -47,11 +45,6 @@ app.get('/test-windy-details', async (req, res) => {
     }
 });
 
-// Basis Route zur Prüfung, ob der Server läuft
-app.get('/', (req, res) => {
-    res.send('Golden Hour Backend läuft! Teste die Details unter: /test-windy-details');
-});
+app.get('/', (req, res) => res.send('Server online! Teste /test-windy-details'));
 
-app.listen(port, () => {
-    console.log(`Server ist aktiv auf Port ${port}`);
-});
+app.listen(port, () => console.log(`Server aktiv auf Port ${port}`));
