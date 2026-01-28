@@ -333,7 +333,7 @@ function getActiveCitiesInCountry(country, now) {
 // ========================================
 
 async function fetchCountryWebcams(countryCode, limit = 50) {
-    const url = `https://api.windy.com/webcams/api/v3/list/country=${countryCode}?limit=${limit}&include=location,images,player,urls`;
+    const url = `https://api.windy.com/webcams/api/v3/list?countries=${countryCode}&limit=${limit}&include=location,images,player,urls`;
     
     try {
         const response = await fetch(url, {
@@ -352,7 +352,7 @@ async function fetchCountryWebcams(countryCode, limit = 50) {
 }
 
 async function fetchNearbyWebcams(city, radius = NEARBY_RADIUS, limit = 50) {
-    const url = `https://api.windy.com/webcams/api/v3/list/nearby=${city.lat},${city.lon},${radius}?limit=${limit}&include=location,images,player,urls`;
+    const url = `https://api.windy.com/webcams/api/v3/list?nearby=${city.lat},${city.lon},${radius}&limit=${limit}&include=location,images,player,urls`;
     
     try {
         const response = await fetch(url, {
