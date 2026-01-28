@@ -19,14 +19,11 @@ let webcamCache = [];
 let lastCacheUpdate = 0;
 const CACHE_DURATION = 10 * 60 * 1000; // 10 Minuten
 
-// Nearby Radius
-const NEARBY_RADIUS = 300; // km
-
 // ========================================
 // LÄNDER-DEFINITIONEN
 // ========================================
 
-// Kleine/mittlere Länder → country code
+// Kleine/mittlere Länder → country parameter
 const SMALL_COUNTRIES = [
     // Europa
     { code: 'AT', name: 'Österreich', minLon: 9.5, maxLon: 17.2 },
@@ -119,28 +116,29 @@ const SMALL_COUNTRIES = [
     { code: 'JM', name: 'Jamaika', minLon: -78.4, maxLon: -76.2 },
 ];
 
-// Große Länder → nearby queries mit Großstädten
+// Große Länder → region parameter (mit Punkt-Notation!)
 const LARGE_COUNTRIES = [
     {
         code: 'US',
         name: 'USA',
         minLon: -125.0,
         maxLon: -66.9,
-        cities: [
-            { lat: 40.7128, lon: -74.0060, name: 'New York' },
-            { lat: 34.0522, lon: -118.2437, name: 'Los Angeles' },
-            { lat: 41.8781, lon: -87.6298, name: 'Chicago' },
-            { lat: 29.7604, lon: -95.3698, name: 'Houston' },
-            { lat: 33.4484, lon: -112.0740, name: 'Phoenix' },
-            { lat: 39.7392, lon: -104.9903, name: 'Denver' },
-            { lat: 47.6062, lon: -122.3321, name: 'Seattle' },
-            { lat: 37.7749, lon: -122.4194, name: 'San Francisco' },
-            { lat: 25.7617, lon: -80.1918, name: 'Miami' },
-            { lat: 32.7157, lon: -117.1611, name: 'San Diego' },
-            { lat: 33.7490, lon: -84.3880, name: 'Atlanta' },
-            { lat: 42.3601, lon: -71.0589, name: 'Boston' },
-            { lat: 39.9526, lon: -75.1652, name: 'Philadelphia' },
-            { lat: 36.1699, lon: -115.1398, name: 'Las Vegas' },
+        regions: [
+            { code: 'US.CA', name: 'California', lat: 36.7, lon: -119.4 },
+            { code: 'US.NY', name: 'New York', lat: 42.5, lon: -75.5 },
+            { code: 'US.FL', name: 'Florida', lat: 27.6, lon: -81.5 },
+            { code: 'US.TX', name: 'Texas', lat: 31.0, lon: -100.0 },
+            { code: 'US.WA', name: 'Washington', lat: 47.4, lon: -121.4 },
+            { code: 'US.CO', name: 'Colorado', lat: 39.0, lon: -105.5 },
+            { code: 'US.AZ', name: 'Arizona', lat: 34.0, lon: -111.0 },
+            { code: 'US.MA', name: 'Massachusetts', lat: 42.4, lon: -71.4 },
+            { code: 'US.IL', name: 'Illinois', lat: 40.0, lon: -89.0 },
+            { code: 'US.PA', name: 'Pennsylvania', lat: 40.9, lon: -77.8 },
+            { code: 'US.GA', name: 'Georgia', lat: 32.7, lon: -83.5 },
+            { code: 'US.NC', name: 'North Carolina', lat: 35.5, lon: -79.0 },
+            { code: 'US.MI', name: 'Michigan', lat: 44.3, lon: -85.6 },
+            { code: 'US.OR', name: 'Oregon', lat: 43.8, lon: -120.5 },
+            { code: 'US.NV', name: 'Nevada', lat: 38.8, lon: -116.4 },
         ]
     },
     {
@@ -148,13 +146,15 @@ const LARGE_COUNTRIES = [
         name: 'Kanada',
         minLon: -141.0,
         maxLon: -52.6,
-        cities: [
-            { lat: 43.6532, lon: -79.3832, name: 'Toronto' },
-            { lat: 45.5017, lon: -73.5673, name: 'Montreal' },
-            { lat: 49.2827, lon: -123.1207, name: 'Vancouver' },
-            { lat: 51.0447, lon: -114.0719, name: 'Calgary' },
-            { lat: 53.5461, lon: -113.4938, name: 'Edmonton' },
-            { lat: 45.4215, lon: -75.6972, name: 'Ottawa' },
+        regions: [
+            { code: 'CA.ON', name: 'Ontario', lat: 51.2, lon: -85.3 },
+            { code: 'CA.QC', name: 'Quebec', lat: 52.9, lon: -73.5 },
+            { code: 'CA.BC', name: 'British Columbia', lat: 53.7, lon: -127.6 },
+            { code: 'CA.AB', name: 'Alberta', lat: 53.9, lon: -116.5 },
+            { code: 'CA.MB', name: 'Manitoba', lat: 53.7, lon: -98.8 },
+            { code: 'CA.SK', name: 'Saskatchewan', lat: 52.9, lon: -106.4 },
+            { code: 'CA.NS', name: 'Nova Scotia', lat: 44.7, lon: -63.6 },
+            { code: 'CA.NB', name: 'New Brunswick', lat: 46.5, lon: -66.2 },
         ]
     },
     {
@@ -162,43 +162,17 @@ const LARGE_COUNTRIES = [
         name: 'Brasilien',
         minLon: -73.9,
         maxLon: -34.8,
-        cities: [
-            { lat: -23.5505, lon: -46.6333, name: 'São Paulo' },
-            { lat: -22.9068, lon: -43.1729, name: 'Rio de Janeiro' },
-            { lat: -15.8267, lon: -47.9218, name: 'Brasília' },
-            { lat: -12.9714, lon: -38.5014, name: 'Salvador' },
-            { lat: -25.4284, lon: -49.2733, name: 'Curitiba' },
-            { lat: -3.1190, lon: -60.0217, name: 'Manaus' },
-            { lat: -1.4558, lon: -48.5044, name: 'Belém' },
-        ]
-    },
-    {
-        code: 'RU',
-        name: 'Russland',
-        minLon: 19.6,
-        maxLon: 180.0,
-        cities: [
-            { lat: 55.7558, lon: 37.6173, name: 'Moskau' },
-            { lat: 59.9343, lon: 30.3351, name: 'St. Petersburg' },
-            { lat: 56.8389, lon: 60.6057, name: 'Jekaterinburg' },
-            { lat: 55.0084, lon: 82.9357, name: 'Nowosibirsk' },
-            { lat: 43.1155, lon: 131.8855, name: 'Wladiwostok' },
-            { lat: 56.0153, lon: 92.8932, name: 'Krasnojarsk' },
-        ]
-    },
-    {
-        code: 'CN',
-        name: 'China',
-        minLon: 73.5,
-        maxLon: 135.1,
-        cities: [
-            { lat: 39.9042, lon: 116.4074, name: 'Peking' },
-            { lat: 31.2304, lon: 121.4737, name: 'Shanghai' },
-            { lat: 23.1291, lon: 113.2644, name: 'Guangzhou' },
-            { lat: 22.3193, lon: 114.1694, name: 'Hongkong' },
-            { lat: 30.5728, lon: 104.0668, name: 'Chengdu' },
-            { lat: 34.3416, lon: 108.9398, name: 'Xi\'an' },
-            { lat: 45.7560, lon: 126.6426, name: 'Harbin' },
+        regions: [
+            { code: 'BR.SP', name: 'São Paulo', lat: -23.5, lon: -46.6 },
+            { code: 'BR.RJ', name: 'Rio de Janeiro', lat: -22.9, lon: -43.2 },
+            { code: 'BR.MG', name: 'Minas Gerais', lat: -18.5, lon: -44.4 },
+            { code: 'BR.BA', name: 'Bahia', lat: -12.9, lon: -41.7 },
+            { code: 'BR.RS', name: 'Rio Grande do Sul', lat: -30.0, lon: -51.2 },
+            { code: 'BR.PR', name: 'Paraná', lat: -25.3, lon: -51.2 },
+            { code: 'BR.SC', name: 'Santa Catarina', lat: -27.2, lon: -50.2 },
+            { code: 'BR.PE', name: 'Pernambuco', lat: -8.3, lon: -37.9 },
+            { code: 'BR.CE', name: 'Ceará', lat: -5.5, lon: -39.3 },
+            { code: 'BR.PA', name: 'Pará', lat: -3.0, lon: -52.0 },
         ]
     },
     {
@@ -206,27 +180,15 @@ const LARGE_COUNTRIES = [
         name: 'Australien',
         minLon: 113.3,
         maxLon: 153.6,
-        cities: [
-            { lat: -33.8688, lon: 151.2093, name: 'Sydney' },
-            { lat: -37.8136, lon: 144.9631, name: 'Melbourne' },
-            { lat: -27.4698, lon: 153.0251, name: 'Brisbane' },
-            { lat: -31.9505, lon: 115.8605, name: 'Perth' },
-            { lat: -34.9285, lon: 138.6007, name: 'Adelaide' },
-            { lat: -12.4634, lon: 130.8456, name: 'Darwin' },
-        ]
-    },
-    {
-        code: 'IN',
-        name: 'Indien',
-        minLon: 68.2,
-        maxLon: 97.4,
-        cities: [
-            { lat: 28.7041, lon: 77.1025, name: 'Neu-Delhi' },
-            { lat: 19.0760, lon: 72.8777, name: 'Mumbai' },
-            { lat: 13.0827, lon: 80.2707, name: 'Chennai' },
-            { lat: 22.5726, lon: 88.3639, name: 'Kolkata' },
-            { lat: 12.9716, lon: 77.5946, name: 'Bangalore' },
-            { lat: 17.3850, lon: 78.4867, name: 'Hyderabad' },
+        regions: [
+            { code: 'AU.NSW', name: 'New South Wales', lat: -32.0, lon: 147.0 },
+            { code: 'AU.VIC', name: 'Victoria', lat: -37.0, lon: 144.0 },
+            { code: 'AU.QLD', name: 'Queensland', lat: -22.5, lon: 144.0 },
+            { code: 'AU.WA', name: 'Western Australia', lat: -26.0, lon: 121.0 },
+            { code: 'AU.SA', name: 'South Australia', lat: -30.0, lon: 135.0 },
+            { code: 'AU.TAS', name: 'Tasmania', lat: -42.0, lon: 146.8 },
+            { code: 'AU.NT', name: 'Northern Territory', lat: -19.5, lon: 133.0 },
+            { code: 'AU.ACT', name: 'Australian Capital Territory', lat: -35.5, lon: 149.0 },
         ]
     },
     {
@@ -234,12 +196,14 @@ const LARGE_COUNTRIES = [
         name: 'Argentinien',
         minLon: -73.6,
         maxLon: -53.6,
-        cities: [
-            { lat: -34.6037, lon: -58.3816, name: 'Buenos Aires' },
-            { lat: -31.4201, lon: -64.1888, name: 'Córdoba' },
-            { lat: -32.8895, lon: -68.8458, name: 'Mendoza' },
-            { lat: -24.7859, lon: -65.4117, name: 'Salta' },
-            { lat: -38.9516, lon: -68.0591, name: 'Neuquén' },
+        regions: [
+            { code: 'AR.C', name: 'Buenos Aires City', lat: -34.6, lon: -58.4 },
+            { code: 'AR.B', name: 'Buenos Aires', lat: -36.7, lon: -60.0 },
+            { code: 'AR.X', name: 'Córdoba', lat: -31.4, lon: -64.2 },
+            { code: 'AR.M', name: 'Mendoza', lat: -34.0, lon: -68.5 },
+            { code: 'AR.S', name: 'Santa Fe', lat: -31.0, lon: -61.0 },
+            { code: 'AR.A', name: 'Salta', lat: -24.8, lon: -65.4 },
+            { code: 'AR.T', name: 'Tucumán', lat: -26.8, lon: -65.2 },
         ]
     },
     {
@@ -247,48 +211,31 @@ const LARGE_COUNTRIES = [
         name: 'Mexiko',
         minLon: -117.1,
         maxLon: -86.7,
-        cities: [
-            { lat: 19.4326, lon: -99.1332, name: 'Mexiko-Stadt' },
-            { lat: 25.6866, lon: -100.3161, name: 'Monterrey' },
-            { lat: 20.6597, lon: -103.3496, name: 'Guadalajara' },
-            { lat: 21.8853, lon: -102.2916, name: 'Aguascalientes' },
-            { lat: 32.5027, lon: -117.0038, name: 'Tijuana' },
+        regions: [
+            { code: 'MX.CMX', name: 'Mexico City', lat: 19.4, lon: -99.1 },
+            { code: 'MX.JAL', name: 'Jalisco', lat: 20.7, lon: -103.4 },
+            { code: 'MX.NLE', name: 'Nuevo León', lat: 25.6, lon: -100.0 },
+            { code: 'MX.BCN', name: 'Baja California', lat: 30.0, lon: -115.0 },
+            { code: 'MX.VER', name: 'Veracruz', lat: 19.5, lon: -96.4 },
+            { code: 'MX.PUE', name: 'Puebla', lat: 19.0, lon: -98.2 },
+            { code: 'MX.QRO', name: 'Querétaro', lat: 20.6, lon: -100.4 },
+            { code: 'MX.GUA', name: 'Guanajuato', lat: 21.0, lon: -101.3 },
         ]
     },
     {
-        code: 'ID',
-        name: 'Indonesien',
-        minLon: 95.0,
-        maxLon: 141.0,
-        cities: [
-            { lat: -6.2088, lon: 106.8456, name: 'Jakarta' },
-            { lat: -8.4095, lon: 115.1889, name: 'Bali' },
-            { lat: -7.2575, lon: 112.7521, name: 'Surabaya' },
-            { lat: 3.5952, lon: 98.6722, name: 'Medan' },
-            { lat: -0.9471, lon: 100.4172, name: 'Padang' },
-        ]
-    },
-    {
-        code: 'TR',
-        name: 'Türkei',
-        minLon: 26.0,
-        maxLon: 44.8,
-        cities: [
-            { lat: 41.0082, lon: 28.9784, name: 'Istanbul' },
-            { lat: 39.9334, lon: 32.8597, name: 'Ankara' },
-            { lat: 38.4237, lon: 27.1428, name: 'Izmir' },
-            { lat: 36.8969, lon: 30.7133, name: 'Antalya' },
-        ]
-    },
-    {
-        code: 'SA',
-        name: 'Saudi-Arabien',
-        minLon: 34.5,
-        maxLon: 55.7,
-        cities: [
-            { lat: 24.7136, lon: 46.6753, name: 'Riad' },
-            { lat: 21.3891, lon: 39.8579, name: 'Dschidda' },
-            { lat: 26.4207, lon: 50.0888, name: 'Dammam' },
+        code: 'IN',
+        name: 'Indien',
+        minLon: 68.2,
+        maxLon: 97.4,
+        regions: [
+            { code: 'IN.DL', name: 'Delhi', lat: 28.7, lon: 77.1 },
+            { code: 'IN.MH', name: 'Maharashtra', lat: 19.0, lon: 75.0 },
+            { code: 'IN.TN', name: 'Tamil Nadu', lat: 11.0, lon: 78.0 },
+            { code: 'IN.WB', name: 'West Bengal', lat: 23.8, lon: 87.8 },
+            { code: 'IN.KA', name: 'Karnataka', lat: 15.3, lon: 75.7 },
+            { code: 'IN.TG', name: 'Telangana', lat: 18.1, lon: 79.0 },
+            { code: 'IN.GJ', name: 'Gujarat', lat: 22.3, lon: 71.6 },
+            { code: 'IN.RJ', name: 'Rajasthan', lat: 27.0, lon: 74.0 },
         ]
     },
 ];
@@ -305,26 +252,16 @@ function isInGoldenHour(lat, lng, now) {
 
 // Prüfe ob ein Land in Golden Hour ist (via Longitude)
 function isCountryInGoldenHour(country, now) {
-    // Prüfe ob IRGENDEIN Punkt des Landes in Golden Hour sein könnte
-    // Wir prüfen die westlichste und östlichste Grenze
-    
-    // Sample mit mittlerer Latitude (z.B. 45° für gemäßigte Breiten)
     const sampleLat = 45;
-    
-    // Prüfe westlichste Grenze
     const westInGH = isInGoldenHour(sampleLat, country.minLon, now);
-    
-    // Prüfe östlichste Grenze
     const eastInGH = isInGoldenHour(sampleLat, country.maxLon, now);
-    
-    // Wenn eine der Grenzen in GH ist, ist das Land aktiv
     return westInGH || eastInGH;
 }
 
-// Finde aktive Städte in großen Ländern
-function getActiveCitiesInCountry(country, now) {
-    return country.cities.filter(city => 
-        isInGoldenHour(city.lat, city.lon, now)
+// Finde aktive Regionen in großen Ländern
+function getActiveRegionsInCountry(country, now) {
+    return country.regions.filter(region => 
+        isInGoldenHour(region.lat, region.lon, now)
     );
 }
 
@@ -333,7 +270,7 @@ function getActiveCitiesInCountry(country, now) {
 // ========================================
 
 async function fetchCountryWebcams(countryCode, limit = 50) {
-    const url = `https://api.windy.com/webcams/api/v3/list?countries=${countryCode}&limit=${limit}&include=location,images,player,urls`;
+    const url = `https://api.windy.com/webcams/api/v3/webcams?country=${countryCode}&limit=${limit}&include=location,images,player`;
     
     try {
         const response = await fetch(url, {
@@ -353,8 +290,8 @@ async function fetchCountryWebcams(countryCode, limit = 50) {
     return [];
 }
 
-async function fetchNearbyWebcams(city, radius = NEARBY_RADIUS, limit = 50) {
-    const url = `https://api.windy.com/webcams/api/v3/list?nearby=${city.lat},${city.lon},${radius}&limit=${limit}&include=location,images,player,urls`;
+async function fetchRegionWebcams(regionCode, limit = 50) {
+    const url = `https://api.windy.com/webcams/api/v3/webcams?region=${regionCode}&limit=${limit}&include=location,images,player`;
     
     try {
         const response = await fetch(url, {
@@ -365,10 +302,10 @@ async function fetchNearbyWebcams(city, radius = NEARBY_RADIUS, limit = 50) {
             const data = await response.json();
             return data.result?.webcams || [];
         } else {
-            console.error(`  ❌ ${city.name}: HTTP ${response.status}`);
+            console.error(`  ❌ ${regionCode}: HTTP ${response.status}`);
         }
     } catch (error) {
-        console.error(`  ❌ ${city.name}: ${error.message}`);
+        console.error(`  ❌ ${regionCode}: ${error.message}`);
     }
     
     return [];
@@ -388,8 +325,8 @@ async function fetchGoldenHourWebcams() {
     }
     
     console.log('\n🌅 ========================================');
-    console.log('   Golden Hour Webcam Scan');
-    console.log('   Hybrid Country/Nearby Strategie');
+    console.log('   Golden Hour Webcam Scan v7.0');
+    console.log('   Hybrid Country/Region Strategie');
     console.log('🌅 ========================================\n');
     
     const currentTime = new Date();
@@ -406,13 +343,13 @@ async function fetchGoldenHourWebcams() {
     
     const activeLargeCountries = LARGE_COUNTRIES.map(country => ({
         ...country,
-        activeCities: getActiveCitiesInCountry(country, currentTime)
-    })).filter(country => country.activeCities.length > 0);
+        activeRegions: getActiveRegionsInCountry(country, currentTime)
+    })).filter(country => country.activeRegions.length > 0);
     
     console.log(`📊 Länder-Analyse:`);
     console.log(`   Kleine Länder: ${activeSmallCountries.length}/${SMALL_COUNTRIES.length} aktiv`);
     console.log(`   Große Länder: ${activeLargeCountries.length}/${LARGE_COUNTRIES.length} aktiv`);
-    console.log(`   Städte in großen Ländern: ${activeLargeCountries.reduce((sum, c) => sum + c.activeCities.length, 0)}\n`);
+    console.log(`   Regionen in großen Ländern: ${activeLargeCountries.reduce((sum, c) => sum + c.activeRegions.length, 0)}\n`);
     
     if (activeSmallCountries.length > 0) {
         console.log(`🌍 Aktive kleine Länder:`);
@@ -425,10 +362,10 @@ async function fetchGoldenHourWebcams() {
     }
     
     if (activeLargeCountries.length > 0) {
-        console.log(`🏙️  Aktive große Länder:`);
+        console.log(`🗺️  Aktive große Länder:`);
         activeLargeCountries.forEach(c => {
-            const cityNames = c.activeCities.map(city => city.name).join(', ');
-            console.log(`   • ${c.name}: ${c.activeCities.length} Städte (${cityNames})`);
+            const regionNames = c.activeRegions.map(r => r.name).join(', ');
+            console.log(`   • ${c.name}: ${c.activeRegions.length} Regionen (${regionNames})`);
         });
         console.log('');
     }
@@ -440,9 +377,9 @@ async function fetchGoldenHourWebcams() {
     const allWebcams = new Map();
     let totalRequests = 0;
     
-    // 2a) Kleine Länder via country code
+    // 2a) Kleine Länder via country parameter
     if (activeSmallCountries.length > 0) {
-        console.log('📦 Lade kleine Länder (country codes)...\n');
+        console.log('📦 Lade kleine Länder (country parameter)...\n');
         
         for (const country of activeSmallCountries) {
             const webcams = await fetchCountryWebcams(country.code);
@@ -459,32 +396,31 @@ async function fetchGoldenHourWebcams() {
                 console.log(`  ⚪ ${country.name} (${country.code}): keine Webcams`);
             }
             
-            // Kleine Pause zwischen Requests
             await new Promise(resolve => setTimeout(resolve, 100));
         }
         console.log('');
     }
     
-    // 2b) Große Länder via nearby
+    // 2b) Große Länder via region parameter
     if (activeLargeCountries.length > 0) {
-        console.log('🏙️  Lade große Länder (nearby cities)...\n');
+        console.log('🗺️  Lade große Länder (region parameter)...\n');
         
         for (const country of activeLargeCountries) {
             console.log(`  ${country.name}:`);
             
-            for (const city of country.activeCities) {
-                const webcams = await fetchNearbyWebcams(city);
+            for (const region of country.activeRegions) {
+                const webcams = await fetchRegionWebcams(region.code);
                 totalRequests++;
                 
                 if (webcams.length > 0) {
-                    console.log(`    ✅ ${city.name}: ${webcams.length} Webcams`);
+                    console.log(`    ✅ ${region.name}: ${webcams.length} Webcams`);
                     webcams.forEach(w => {
                         if (w.images?.current && w.player && (w.player.live || w.player.day) && w.status === 'active') {
                             allWebcams.set(w.webcamId, w);
                         }
                     });
                 } else {
-                    console.log(`    ⚪ ${city.name}: keine Webcams`);
+                    console.log(`    ⚪ ${region.name}: keine Webcams`);
                 }
                 
                 await new Promise(resolve => setTimeout(resolve, 100));
@@ -586,22 +522,21 @@ app.get('/', async (req, res) => {
     const activeLargeCountries = LARGE_COUNTRIES.map(country => ({
         name: country.name,
         code: country.code,
-        activeCities: getActiveCitiesInCountry(country, currentTime).map(c => c.name)
-    })).filter(country => country.activeCities.length > 0);
+        activeRegions: getActiveRegionsInCountry(country, currentTime).map(r => r.name)
+    })).filter(country => country.activeRegions.length > 0);
     
     res.json({
         status: 'ok',
-        message: 'Golden Hour Backend - Hybrid Country/Nearby Strategie',
-        version: '6.0',
+        message: 'Golden Hour Backend - Hybrid Country/Region Strategie',
+        version: '7.0',
         strategy: {
             method: 'hybrid',
-            description: 'Country codes für kleine Länder + Nearby für große Länder',
-            nearbyRadius: NEARBY_RADIUS,
+            description: 'country= für kleine Länder + region= für große Länder',
             smallCountriesTotal: SMALL_COUNTRIES.length,
             largeCountriesTotal: LARGE_COUNTRIES.length,
             activeSmallCountries: activeSmallCountries.length,
             activeLargeCountries: activeLargeCountries.length,
-            activeCities: activeLargeCountries.reduce((sum, c) => sum + c.activeCities.length, 0)
+            activeRegions: activeLargeCountries.reduce((sum, c) => sum + c.activeRegions.length, 0)
         },
         goldenHour: {
             range: `${GOLDEN_HOUR_MIN}° bis ${GOLDEN_HOUR_MAX}°`,
@@ -618,11 +553,9 @@ app.get('/', async (req, res) => {
             ageMinutes: webcamCache.length > 0 ? Math.floor((Date.now() - lastCacheUpdate) / 60000) : null
         },
         testEndpoints: {
-            singleCountry: '/api/test/country/:code (z.B. /api/test/country/DE)',
-            multipleCountries: '/api/test/countries/:codes (z.B. /api/test/countries/DE,CH,AT)',
-            singleRegion: '/api/test/region/:code (z.B. /api/test/region/US-CA)',
-            multipleRegions: '/api/test/regions/:codes (z.B. /api/test/regions/US-CA,US-NY,US-FL)',
-            nearbyVsRegion: '/api/test/compare'
+            singleCountry: '/api/test/country/:code (z.B. /api/test/country/US)',
+            singleRegion: '/api/test/region/:code (z.B. /api/test/region/US.CA)',
+            compare: '/api/test/compare'
         }
     });
 });
@@ -637,7 +570,7 @@ app.get('/api/webcams', async (req, res) => {
                 premium: webcams.filter(w => w.isPremium).length,
                 cached: (Date.now() - lastCacheUpdate) < CACHE_DURATION,
                 cacheAgeMinutes: Math.floor((Date.now() - lastCacheUpdate) / 60000),
-                strategy: 'hybrid (country + nearby)',
+                strategy: 'hybrid (country + region)',
                 timestamp: new Date().toISOString()
             }
         });
@@ -658,8 +591,7 @@ app.get('/api/stats', async (req, res) => {
     res.json({
         total: webcams.length,
         premium: webcams.filter(w => w.isPremium).length,
-        strategy: 'hybrid (country + nearby)',
-        nearbyRadius: NEARBY_RADIUS,
+        strategy: 'hybrid (country + region)',
         smallCountries: SMALL_COUNTRIES.length,
         largeCountries: LARGE_COUNTRIES.length,
         byCountry: Object.entries(byCountry)
@@ -683,7 +615,7 @@ app.post('/api/refresh', async (req, res) => {
 app.get('/api/test/country/:code', async (req, res) => {
     const { code } = req.params;
     const limit = req.query.limit || 50;
-    const url = `https://api.windy.com/webcams/api/v3/list?countries=${code}&limit=${limit}&include=location,images,player`;
+    const url = `https://api.windy.com/webcams/api/v3/webcams?country=${code}&limit=${limit}&include=location,images,player`;
     
     console.log(`\n🧪 TEST: Single Country`);
     console.log(`   Code: ${code}`);
@@ -697,7 +629,6 @@ app.get('/api/test/country/:code', async (req, res) => {
         const data = await response.json();
         const webcams = data.result?.webcams || [];
         
-        // Analyse
         const countries = {};
         const regions = {};
         webcams.forEach(w => {
@@ -727,57 +658,9 @@ app.get('/api/test/country/:code', async (req, res) => {
                 title: w.title,
                 location: `${w.location?.city}, ${w.location?.region}, ${w.location?.country}`,
                 coordinates: `${w.location?.latitude.toFixed(2)}, ${w.location?.longitude.toFixed(2)}`,
+                region_code: w.location?.region_code,
                 hasLive: !!w.player?.live,
                 hasDay: !!w.player?.day
-            }))
-        });
-        
-    } catch (error) {
-        console.error(`❌ Fehler: ${error.message}\n`);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.get('/api/test/countries/:codes', async (req, res) => {
-    const { codes } = req.params;
-    const limit = req.query.limit || 50;
-    const url = `https://api.windy.com/webcams/api/v3/list?countries=${codes}&limit=${limit}&include=location,images,player`;
-    
-    console.log(`\n🧪 TEST: Multiple Countries`);
-    console.log(`   Codes: ${codes}`);
-    console.log(`   URL: ${url}\n`);
-    
-    try {
-        const response = await fetch(url, {
-            headers: { 'x-windy-api-key': WINDY_KEY }
-        });
-        
-        const data = await response.json();
-        const webcams = data.result?.webcams || [];
-        
-        const countries = {};
-        webcams.forEach(w => {
-            const country = w.location?.country || 'Unknown';
-            countries[country] = (countries[country] || 0) + 1;
-        });
-        
-        console.log(`✅ Erfolg: ${webcams.length} Webcams`);
-        console.log(`   Verteilung: ${JSON.stringify(countries)}\n`);
-        
-        res.json({
-            test: 'multiple_countries',
-            codes: codes.split(','),
-            url: url,
-            status: response.status,
-            success: response.ok,
-            total: data.result?.total || 0,
-            returned: webcams.length,
-            distribution: countries,
-            sample: webcams.slice(0, 5).map(w => ({
-                id: w.webcamId,
-                title: w.title,
-                country: w.location?.country,
-                region: w.location?.region
             }))
         });
         
@@ -790,7 +673,7 @@ app.get('/api/test/countries/:codes', async (req, res) => {
 app.get('/api/test/region/:code', async (req, res) => {
     const { code } = req.params;
     const limit = req.query.limit || 50;
-    const url = `https://api.windy.com/webcams/api/v3/list?regions=${code}&limit=${limit}&include=location,images,player`;
+    const url = `https://api.windy.com/webcams/api/v3/webcams?region=${code}&limit=${limit}&include=location,images,player`;
     
     console.log(`\n🧪 TEST: Single Region`);
     console.log(`   Code: ${code}`);
@@ -806,7 +689,6 @@ app.get('/api/test/region/:code', async (req, res) => {
         
         const regions = {};
         webcams.forEach(w => {
-            const region = w.location?.region || 'Unknown';
             const regionCode = w.location?.region_code || 'Unknown';
             regions[regionCode] = (regions[regionCode] || 0) + 1;
         });
@@ -838,119 +720,63 @@ app.get('/api/test/region/:code', async (req, res) => {
     }
 });
 
-app.get('/api/test/regions/:codes', async (req, res) => {
-    const { codes } = req.params;
-    const limit = req.query.limit || 50;
-    const url = `https://api.windy.com/webcams/api/v3/list?regions=${codes}&limit=${limit}&include=location,images,player`;
-    
-    console.log(`\n🧪 TEST: Multiple Regions`);
-    console.log(`   Codes: ${codes}`);
-    console.log(`   URL: ${url}\n`);
-    
-    try {
-        const response = await fetch(url, {
-            headers: { 'x-windy-api-key': WINDY_KEY }
-        });
-        
-        const data = await response.json();
-        const webcams = data.result?.webcams || [];
-        
-        const regions = {};
-        webcams.forEach(w => {
-            const regionCode = w.location?.region_code || 'Unknown';
-            regions[regionCode] = (regions[regionCode] || 0) + 1;
-        });
-        
-        console.log(`✅ Erfolg: ${webcams.length} Webcams`);
-        console.log(`   Verteilung: ${JSON.stringify(regions)}\n`);
-        
-        res.json({
-            test: 'multiple_regions',
-            codes: codes.split(','),
-            url: url,
-            status: response.status,
-            success: response.ok,
-            total: data.result?.total || 0,
-            returned: webcams.length,
-            distribution: regions,
-            sample: webcams.slice(0, 5).map(w => ({
-                id: w.webcamId,
-                title: w.title,
-                region: w.location?.region,
-                regionCode: w.location?.region_code
-            }))
-        });
-        
-    } catch (error) {
-        console.error(`❌ Fehler: ${error.message}\n`);
-        res.status(500).json({ error: error.message });
-    }
-});
-
 app.get('/api/test/compare', async (req, res) => {
-    console.log(`\n🧪 TEST: Nearby vs Region Vergleich (Kalifornien)\n`);
+    console.log(`\n🧪 TEST: Country vs Region Vergleich (USA)\n`);
     
     try {
-        // Test 1: Nearby (Los Angeles, 300km)
-        const nearbyUrl = `https://api.windy.com/webcams/api/v3/list?nearby=34.05,-118.24,300&limit=50&include=location,images,player`;
-        const nearbyResponse = await fetch(nearbyUrl, {
+        // Test 1: Country (ganzes Land)
+        const countryUrl = `https://api.windy.com/webcams/api/v3/webcams?country=US&limit=50&include=location,images,player`;
+        const countryResponse = await fetch(countryUrl, {
             headers: { 'x-windy-api-key': WINDY_KEY }
         });
-        const nearbyData = await nearbyResponse.json();
-        const nearbyWebcams = nearbyData.result?.webcams || [];
+        const countryData = await countryResponse.json();
+        const countryWebcams = countryData.result?.webcams || [];
         
-        console.log(`📍 Nearby (300km um LA): ${nearbyWebcams.length} Webcams`);
+        console.log(`🇺🇸 Country (US): ${countryWebcams.length} Webcams`);
         
         // Test 2: Region (California)
-        const regionUrl = `https://api.windy.com/webcams/api/v3/list?regions=US-CA&limit=50&include=location,images,player`;
+        const regionUrl = `https://api.windy.com/webcams/api/v3/webcams?region=US.CA&limit=50&include=location,images,player`;
         const regionResponse = await fetch(regionUrl, {
             headers: { 'x-windy-api-key': WINDY_KEY }
         });
         const regionData = await regionResponse.json();
         const regionWebcams = regionData.result?.webcams || [];
         
-        console.log(`🗺️  Region (US-CA): ${regionWebcams.length} Webcams`);
+        console.log(`🗺️  Region (US.CA): ${regionWebcams.length} Webcams`);
         
-        // Überschneidungen
-        const nearbyIds = new Set(nearbyWebcams.map(w => w.webcamId));
-        const regionIds = new Set(regionWebcams.map(w => w.webcamId));
-        const intersection = [...nearbyIds].filter(id => regionIds.has(id));
+        // Analyse: Wie viele CA-Webcams sind im Country-Result?
+        const caWebcamsInCountry = countryWebcams.filter(w => 
+            w.location?.region_code === 'US.CA'
+        ).length;
         
-        console.log(`🔄 Überschneidung: ${intersection.length} Webcams`);
+        console.log(`📊 CA-Webcams im Country-Result: ${caWebcamsInCountry}`);
         
         let conclusion = '';
-        if (intersection.length > nearbyWebcams.length * 0.7) {
-            conclusion = '✅ Nearby und Region liefern sehr ähnliche Ergebnisse!';
-        } else if (regionWebcams.length > nearbyWebcams.length * 1.5) {
-            conclusion = `🎯 Region liefert MEHR Webcams (${regionWebcams.length} vs ${nearbyWebcams.length}) - Region ist BESSER!`;
-        } else if (nearbyWebcams.length > regionWebcams.length * 1.5) {
-            conclusion = `📍 Nearby liefert MEHR Webcams (${nearbyWebcams.length} vs ${regionWebcams.length}) - Nearby ist BESSER!`;
+        if (regionWebcams.length > countryWebcams.length * 0.5) {
+            conclusion = `🎯 Region liefert viele Webcams (${regionWebcams.length}) - Region-Filter ist EFFEKTIV!`;
+        } else if (regionWebcams.length > 0) {
+            conclusion = `✅ Region funktioniert (${regionWebcams.length} Webcams)`;
         } else {
-            conclusion = `⚖️ Beide ähnlich gut (${nearbyWebcams.length} vs ${regionWebcams.length})`;
+            conclusion = `❌ Region liefert keine Webcams - nutze country stattdessen`;
         }
         
         console.log(`${conclusion}\n`);
         
         res.json({
-            test: 'nearby_vs_region',
-            nearby: {
-                method: 'nearby=34.05,-118.24,300',
-                total: nearbyWebcams.length,
-                url: nearbyUrl
+            test: 'country_vs_region',
+            country: {
+                method: 'country=US',
+                total: countryWebcams.length,
+                caWebcams: caWebcamsInCountry,
+                url: countryUrl
             },
             region: {
-                method: 'regions=US-CA',
+                method: 'region=US.CA',
                 total: regionWebcams.length,
                 url: regionUrl
             },
-            comparison: {
-                intersection: intersection.length,
-                intersectionPercent: ((intersection.length / Math.max(nearbyWebcams.length, regionWebcams.length, 1)) * 100).toFixed(1),
-                onlyNearby: nearbyWebcams.length - intersection.length,
-                onlyRegion: regionWebcams.length - intersection.length
-            },
             conclusion: conclusion,
-            recommendation: regionWebcams.length > nearbyWebcams.length ? 'regions' : 'nearby'
+            recommendation: regionWebcams.length > 0 ? 'regions' : 'country'
         });
         
     } catch (error) {
@@ -966,13 +792,12 @@ app.get('/api/test/compare', async (req, res) => {
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', async () => {
     console.log('\n🌅 ========================================');
-    console.log('   Golden Hour Backend v6.0');
-    console.log('   Hybrid Country/Nearby Strategie');
+    console.log('   Golden Hour Backend v7.0');
+    console.log('   Hybrid Country/Region Strategie');
     console.log('🌅 ========================================');
     console.log(`   Port: ${PORT}`);
-    console.log(`   Kleine Länder: ${SMALL_COUNTRIES.length} (via country code)`);
-    console.log(`   Große Länder: ${LARGE_COUNTRIES.length} (via nearby)`);
-    console.log(`   Nearby Radius: ${NEARBY_RADIUS}km`);
+    console.log(`   Kleine Länder: ${SMALL_COUNTRIES.length} (via country)`);
+    console.log(`   Große Länder: ${LARGE_COUNTRIES.length} (via region)`);
     console.log(`   Golden Hour: ${GOLDEN_HOUR_MIN}° bis ${GOLDEN_HOUR_MAX}°`);
     console.log('\n   Lade initiale Webcams...\n');
     await fetchGoldenHourWebcams();
