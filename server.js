@@ -270,7 +270,7 @@ function getActiveRegionsInCountry(country, now) {
 // ========================================
 
 async function fetchCountryWebcams(countryCode, limit = 50) {
-    const url = `https://api.windy.com/webcams/api/v3/webcams?country=${countryCode}&limit=${limit}&include=location,images,player`;
+    const url = `https://api.windy.com/webcams/api/v3/webcams?countries=${countryCode}&limit=${limit}`;
     
     try {
         const response = await fetch(url, {
@@ -291,7 +291,7 @@ async function fetchCountryWebcams(countryCode, limit = 50) {
 }
 
 async function fetchRegionWebcams(regionCode, limit = 50) {
-    const url = `https://api.windy.com/webcams/api/v3/webcams?region=${regionCode}&limit=${limit}&include=location,images,player`;
+    const url = `https://api.windy.com/webcams/api/v3/webcams?regions=${regionCode}&limit=${limit}`;
     
     try {
         const response = await fetch(url, {
@@ -615,7 +615,7 @@ app.post('/api/refresh', async (req, res) => {
 app.get('/api/test/country/:code', async (req, res) => {
     const { code } = req.params;
     const limit = req.query.limit || 50;
-    const url = `https://api.windy.com/webcams/api/v3/webcams?country=${code}&limit=${limit}&include=location,images,player`;
+    const url = `https://api.windy.com/webcams/api/v3/webcams?countries=${code}&limit=${limit}`;
     
     console.log(`\n🧪 TEST: Single Country`);
     console.log(`   Code: ${code}`);
@@ -673,7 +673,7 @@ app.get('/api/test/country/:code', async (req, res) => {
 app.get('/api/test/region/:code', async (req, res) => {
     const { code } = req.params;
     const limit = req.query.limit || 50;
-    const url = `https://api.windy.com/webcams/api/v3/webcams?region=${code}&limit=${limit}&include=location,images,player`;
+    const url = `https://api.windy.com/webcams/api/v3/webcams?regions=${code}&limit=${limit}`;
     
     console.log(`\n🧪 TEST: Single Region`);
     console.log(`   Code: ${code}`);
@@ -725,7 +725,7 @@ app.get('/api/test/compare', async (req, res) => {
     
     try {
         // Test 1: Country (ganzes Land)
-        const countryUrl = `https://api.windy.com/webcams/api/v3/webcams?country=US&limit=50&include=location,images,player`;
+        const countryUrl = `https://api.windy.com/webcams/api/v3/webcams?countries=US&limit=50`;
         const countryResponse = await fetch(countryUrl, {
             headers: { 'x-windy-api-key': WINDY_KEY }
         });
@@ -735,7 +735,7 @@ app.get('/api/test/compare', async (req, res) => {
         console.log(`🇺🇸 Country (US): ${countryWebcams.length} Webcams`);
         
         // Test 2: Region (California)
-        const regionUrl = `https://api.windy.com/webcams/api/v3/webcams?region=US.CA&limit=50&include=location,images,player`;
+        const regionUrl = `https://api.windy.com/webcams/api/v3/webcams?regions=US.CA&limit=50`;
         const regionResponse = await fetch(regionUrl, {
             headers: { 'x-windy-api-key': WINDY_KEY }
         });
