@@ -10,7 +10,7 @@ app.use(cors());
 const WINDY_KEY = process.env.WINDY_API_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
 
 // ========================================
-// 1. DER DEBUG-LINK (Muss funktionieren!)
+// 1. DER DEBUG-LINK (Simulation wie Hoppscotch)
 // ========================================
 app.get('/debug', async (req, res) => {
     try {
@@ -35,11 +35,11 @@ app.get('/debug', async (req, res) => {
 });
 
 // ========================================
-// 2. DIE GOLDEN HOUR LOGIK
+// 2. DIE GOLDEN HOUR LOGIK (Gezielte Abfrage)
 // ========================================
 app.get('/webcams', async (req, res) => {
     try {
-        // Wir nehmen eine Region, die groß genug ist (z.B. Kalifornien)
+        // Wir nehmen eine feste Region zum Testen (z.B. US Westküste)
         const url = "https://api.windy.com/webcams/api/v3/webcams?region=US.CA&limit=50&include=location,images";
         
         const response = await fetch(url, {
@@ -53,7 +53,7 @@ app.get('/webcams', async (req, res) => {
         const goldenHourCams = (data.webcams || []).filter(cam => {
             const sunPos = SunCalc.getPosition(now, cam.location.latitude, cam.location.longitude);
             const altitudeDeg = sunPos.altitude * (180 / Math.PI);
-            // Golden Hour: -8 bis +8 Grad
+            // Golden Hour Check zwischen -8 und +8 Grad
             return altitudeDeg >= -8 && altitudeDeg <= 8;
         });
 
