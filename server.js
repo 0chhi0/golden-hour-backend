@@ -1,14 +1,17 @@
+// 1. IMPORTE (Ganz oben)
 import express from 'express';
 import axios from 'axios';
 import cors from 'cors';
 
-const app = express(); // <--- DAS IST DIE WICHTIGE ZEILE
+// 2. INITIALISIERUNG
+const app = express();
 const port = process.env.PORT || 3000;
 
+// 3. MIDDLEWARE
 app.use(cors());
 app.use(express.json());
 
-// HIER DEN TEST-CODE EINFÜGEN:
+// --- START NEUER TEST-CODE ---
 app.get('/test-windy-nearby', async (req, res) => {
     try {
         const testUrl = "https://api.windy.com/webcams/api/v3/webcams?nearby=35.68,139.76,200&limit=5&include=location";
@@ -25,8 +28,20 @@ app.get('/test-windy-nearby', async (req, res) => {
             }))
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ 
+            error: error.message,
+            details: error.response?.data || "Keine weiteren Details"
+        });
     }
 });
+// --- ENDE NEUER TEST-CODE ---
 
-// ... Rest deines Codes (app.listen etc.)
+// 4. DEINE BESTEHENDEN ROUTEN (Falls du schon welche hast)
+app.get('/', (req, res) => {
+    res.send('Server läuft!');
+});
+
+// 5. SERVER STARTEN (Ganz unten)
+app.listen(port, () => {
+    console.log(`Server läuft auf Port ${port}`);
+});
