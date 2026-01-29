@@ -15,47 +15,111 @@ const PRE_CHECK_WINDOW = 20; // Größeres Fenster, damit keine Region zu früh 
 const LIMIT_PER_REGION = 50; 
 
 const TARGETS = [
-    // --- AUSTRALIEN (Einzeln nach Bundesstaaten, um West-Ost-Lücke zu schließen) ---
+    // --- AUSTRALIEN (Lückenlos) ---
     { type: 'region', code: 'AU.WA', name: 'Western Australia', lat: -25.0, lon: 122.0 },
     { type: 'region', code: 'AU.NT', name: 'Northern Territory', lat: -19.4, lon: 133.3 },
     { type: 'region', code: 'AU.SA', name: 'South Australia', lat: -30.0, lon: 135.0 },
     { type: 'region', code: 'AU.QLD', name: 'Queensland', lat: -20.9, lon: 142.7 },
     { type: 'region', code: 'AU.NSW', name: 'New South Wales', lat: -31.2, lon: 146.9 },
     { type: 'region', code: 'AU.VIC', name: 'Victoria', lat: -37.4, lon: 144.9 },
+    { type: 'region', code: 'AU.TAS', name: 'Tasmania', lat: -42.0, lon: 146.6 },
 
-    // --- SÜDAMERIKA (Massiv ausgebaut) ---
-    { type: 'country', code: 'BR', name: 'Brasilien', lat: -14.2, lon: -51.9 },
+    // --- CHINA (Unterteilt in Ost, West, Süd, Nord) ---
+    { type: 'region', code: 'CN.22', name: 'Beijing/Ostchina', lat: 39.9, lon: 116.4 },
+    { type: 'region', code: 'CN.30', name: 'Guangdong/Südchina', lat: 23.1, lon: 113.2 },
+    { type: 'region', code: 'CN.13', name: 'Xinjiang/Westchina', lat: 43.8, lon: 87.6 },
+    { type: 'region', code: 'CN.14', name: 'Tibet', lat: 29.6, lon: 91.1 },
+    { type: 'region', code: 'CN.23', name: 'Shanghai Region', lat: 31.2, lon: 121.4 },
+    { type: 'region', code: 'CN.08', name: 'Heilongjiang/Nordost', lat: 45.7, lon: 126.6 },
+    
+    // --- ASIEN ( Länder) ---
+    { type: 'country', code: 'JP', name: 'Japan', lat: 36.2, lon: 138.2 },
+    { type: 'country', code: 'KR', name: 'Südkorea', lat: 35.9, lon: 127.7 },
+    { type: 'country', code: 'VN', name: 'Vietnam', lat: 14.0, lon: 108.2 },
+    { type: 'country', code: 'TH', name: 'Thailand', lat: 15.8, lon: 100.9 },
+    { type: 'country', code: 'ID', name: 'Indonesien', lat: -0.7, lon: 113.9 },
+    { type: 'country', code: 'PH', name: 'Philippinen', lat: 12.8, lon: 121.7 },
+    { type: 'country', code: 'MY', name: 'Malaysia', lat: 4.2, lon: 101.9 },
+    { type: 'country', code: 'SG', name: 'Singapur', lat: 1.3, lon: 103.8 },
+    { type: 'country', code: 'TR', name: 'Türkei', lat: 38.9, lon: 35.2 },
+    { type: 'country', code: 'AE', name: 'VAE', lat: 23.4, lon: 53.8 },
+
+    // --- INDIEN (Nord, Süd, West, Ost) ---
+    { type: 'region', code: 'IN.16', name: 'Maharashtra/West (Mumbai)', lat: 19.0, lon: 72.8 },
+    { type: 'region', code: 'IN.25', name: 'Westbengalen/Ost (Kalkutta)', lat: 22.5, lon: 88.3 },
+    { type: 'region', code: 'IN.07', name: 'Delhi/Nordindien', lat: 28.6, lon: 77.2 },
+    { type: 'region', code: 'IN.22', name: 'Tamil Nadu/Südindien', lat: 13.0, lon: 80.2 },
+    { type: 'region', code: 'IN.14', name: 'Karnataka/Zentral-Süd', lat: 12.9, lon: 77.5 },
+
+    // --- USA (Erweitert) ---
+    { type: 'region', code: 'US.CA', name: 'California', lat: 36.7, lon: -119.4 },
+    { type: 'region', code: 'US.OR', name: 'Oregon', lat: 43.8, lon: -120.5 },
+    { type: 'region', code: 'US.WA', name: 'Washington State', lat: 47.7, lon: -120.7 },
+    { type: 'region', code: 'US.AK', name: 'Alaska', lat: 63.5, lon: -148.9 },
+    { type: 'region', code: 'US.HI', name: 'Hawaii', lat: 19.8, lon: -155.5 },
+    { type: 'region', code: 'US.FL', name: 'Florida', lat: 27.6, lon: -81.5 },
+    { type: 'region', code: 'US.NY', name: 'New York', lat: 40.7, lon: -74.0 },
+    { type: 'region', code: 'US.TX', name: 'Texas', lat: 31.9, lon: -99.9 },
+    { type: 'region', code: 'US.CO', name: 'Colorado', lat: 39.5, lon: -105.7 },
+
+    // --- KANADA ---
+    { type: 'region', code: 'CA.BC', name: 'British Columbia', lat: 53.7, lon: -127.6 },
+    { type: 'region', code: 'CA.ON', name: 'Ontario', lat: 51.2, lon: -85.3 },
+    { type: 'region', code: 'CA.QC', name: 'Quebec', lat: 52.9, lon: -73.5 },
+
+    // --- BRASILIEN ---
+    { type: 'region', code: 'BR.SP', name: 'São Paulo', lat: -23.5, lon: -46.6 },
     { type: 'region', code: 'BR.AM', name: 'Amazonas', lat: -3.4, lon: -60.0 },
-    { type: 'region', code: 'BR.SP', name: 'Sao Paulo', lat: -23.5, lon: -46.6 },
+    { type: 'region', code: 'BR.RJ', name: 'Rio de Janeiro', lat: -22.9, lon: -43.1 },
+    // --- SÜDAMERIKA (Länder) ---
     { type: 'country', code: 'AR', name: 'Argentinien', lat: -38.4, lon: -63.6 },
     { type: 'country', code: 'CL', name: 'Chile', lat: -35.6, lon: -71.5 },
     { type: 'country', code: 'PE', name: 'Peru', lat: -9.1, lon: -75.0 },
     { type: 'country', code: 'CO', name: 'Kolumbien', lat: 4.5, lon: -74.0 },
+    { type: 'country', code: 'EC', name: 'Ecuador', lat: -1.8, lon: -78.1 },
+    { type: 'country', code: 'BO', name: 'Bolivien', lat: -16.2, lon: -63.5 },
+    { type: 'country', code: 'UY', name: 'Uruguay', lat: -32.5, lon: -55.7 },
+    { type: 'country', code: 'PY', name: 'Paraguay', lat: -23.4, lon: -58.4 },
 
-    // --- NORDAMERIKA (Lückenlos) ---
-    { type: 'region', code: 'CA.BC', name: 'British Columbia', lat: 53.7, lon: -127.6 },
-    { type: 'region', code: 'CA.AB', name: 'Alberta', lat: 53.9, lon: -116.5 },
-    { type: 'region', code: 'CA.ON', name: 'Ontario', lat: 51.2, lon: -85.3 },
-    { type: 'region', code: 'CA.QC', name: 'Quebec', lat: 52.9, lon: -73.5 },
-    { type: 'region', code: 'US.CA', name: 'California', lat: 36.7, lon: -119.4 },
-    { type: 'region', code: 'US.NY', name: 'New York', lat: 40.7, lon: -74.0 },
-    { type: 'region', code: 'US.FL', name: 'Florida', lat: 27.6, lon: -81.5 },
-    { type: 'region', code: 'US.TX', name: 'Texas', lat: 31.9, lon: -99.9 },
-    { type: 'region', code: 'US.AK', name: 'Alaska', lat: 63.5, lon: -148.9 },
+    // --- RUSSLAND (Über 11 Zeitzonen) ---
+    { type: 'region', code: 'RU.MOW', name: 'Moskau', lat: 55.7, lon: 37.6 },
+    { type: 'region', code: 'RU.SPE', name: 'St. Petersburg', lat: 59.9, lon: 30.3 },
+    { type: 'region', code: 'RU.KHA', name: 'Chabarowsk', lat: 48.5, lon: 135.0 },
+    { type: 'region', code: 'RU.KAM', name: 'Kamtschatka', lat: 53.0, lon: 158.6 },
 
-    // --- EUROPA & AFRIKA ---
-    { type: 'country', code: 'NO', name: 'Norwegen', lat: 60.4, lon: 8.4 },
+    // --- EUROPA (Vollständig) ---
     { type: 'country', code: 'DE', name: 'Deutschland', lat: 51.1, lon: 10.4 },
+    { type: 'country', code: 'AT', name: 'Österreich', lat: 47.5, lon: 14.5 },
+    { type: 'country', code: 'CH', name: 'Schweiz', lat: 46.8, lon: 8.2 },
+    { type: 'country', code: 'FR', name: 'Frankreich', lat: 46.2, lon: 2.2 },
+    { type: 'country', code: 'IT', name: 'Italien', lat: 41.8, lon: 12.5 },
     { type: 'country', code: 'ES', name: 'Spanien', lat: 40.4, lon: -3.7 },
-    { type: 'country', code: 'ZA', name: 'Südafrika', lat: -30.5, lon: 22.9 },
+    { type: 'country', code: 'PT', name: 'Portugal', lat: 39.3, lon: -8.2 },
+    { type: 'country', code: 'GB', name: 'UK', lat: 55.3, lon: -3.4 },
+    { type: 'country', code: 'IE', name: 'Irland', lat: 53.4, lon: -8.2 },
+    { type: 'country', code: 'NO', name: 'Norwegen', lat: 60.4, lon: 8.4 },
+    { type: 'country', code: 'SE', name: 'Schweden', lat: 60.1, lon: 18.6 },
+    { type: 'country', code: 'FI', name: 'Finnland', lat: 61.9, lon: 25.7 },
     { type: 'country', code: 'IS', name: 'Island', lat: 64.9, lon: -18.0 },
+    { type: 'country', code: 'PL', name: 'Polen', lat: 51.9, lon: 19.1 },
+    { type: 'country', code: 'CZ', name: 'Tschechien', lat: 49.8, lon: 15.4 },
+    { type: 'country', code: 'GR', name: 'Griechenland', lat: 39.0, lon: 21.8 },
+    { type: 'country', code: 'HR', name: 'Kroatien', lat: 45.1, lon: 15.2 },
+    { type: 'country', code: 'RO', name: 'Rumänien', lat: 45.9, lon: 24.9 },
+    { type: 'country', code: 'HU', name: 'Ungarn', lat: 47.1, lon: 19.5 },
 
-    // --- ASIEN ---
-    { type: 'country', code: 'JP', name: 'Japan', lat: 36.2, lon: 138.2 },
-    { type: 'country', code: 'CN', name: 'China', lat: 35.8, lon: 104.1 },
-    { type: 'country', code: 'RU', name: 'Russland', lat: 61.5, lon: 105.3 },
-    { type: 'country', code: 'IN', name: 'Indien', lat: 20.5, lon: 78.9 },
-    { type: 'country', code: 'NZ', name: 'Neuseeland', lat: -40.9, lon: 174.8 }
+    // --- AFRIKA ---
+    { type: 'country', code: 'ZA', name: 'Südafrika', lat: -30.5, lon: 22.9 },
+    { type: 'country', code: 'MA', name: 'Marokko', lat: 31.7, lon: -7.0 },
+    { type: 'country', code: 'EG', name: 'Ägypten', lat: 26.8, lon: 30.8 },
+    { type: 'country', code: 'DZ', name: 'Algerien', lat: 28.0, lon: 1.6 },
+    { type: 'country', code: 'KE', name: 'Kenia', lat: -0.02, lon: 37.9 },
+    { type: 'country', code: 'NA', name: 'Namibia', lat: -22.9, lon: 18.4 },
+    { type: 'country', code: 'SN', name: 'Senegal', lat: 14.4, lon: -14.4 },
+
+    // --- WEITERE LÄNDER ---
+    { type: 'country', code: 'NZ', name: 'Neuseeland', lat: -40.9, lon: 174.8 },
+    
 ];
 
 async function fetchForTarget(target) {
