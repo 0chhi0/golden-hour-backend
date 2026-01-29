@@ -77,6 +77,12 @@ const TARGETS = [
     { type: 'region', code: 'CA.NT', name: 'Northwest Territories', lat: 64.8, lon: -119.1 },
     { type: 'region', code: 'CA.NU', name: 'Nunavut', lat: 70.3, lon: -92.2 }
 
+    // --- MEXIKO (Unterteilt für Karibik & Pazifik) ---
+    { type: 'region', code: 'MX.ROO', name: 'Quintana Roo (Cancun)', lat: 19.1, lon: -87.5 },
+    { type: 'region', code: 'MX.MEX', name: 'Zentral-Mexiko', lat: 19.4, lon: -99.1 },
+    { type: 'region', code: 'MX.BCN', name: 'Baja California', lat: 30.5, lon: -115.1 },
+    { type: 'region', code: 'MX.JAL', name: 'Jalisco (Pazifik)', lat: 20.6, lon: -103.3 },
+
     // --- BRASILIEN ---
     { type: 'region', code: 'BR.SP', name: 'São Paulo', lat: -23.5, lon: -46.6 },
     { type: 'region', code: 'BR.AM', name: 'Amazonas', lat: -3.4, lon: -60.0 },
