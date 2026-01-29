@@ -62,10 +62,14 @@ const TARGETS = [
     { type: 'region', code: 'US.TX', name: 'Texas', lat: 31.9, lon: -99.9 },
     { type: 'region', code: 'US.CO', name: 'Colorado', lat: 39.5, lon: -105.7 },
 
-    // --- KANADA ---
-    { type: 'region', code: 'CA.BC', name: 'British Columbia', lat: 53.7, lon: -127.6 },
-    { type: 'region', code: 'CA.ON', name: 'Ontario', lat: 51.2, lon: -85.3 },
+    // --- KANADA (Vollständige Ost-West Abdeckung) ---
+    { type: 'region', code: 'CA.NL', name: 'Neufundland & Labrador', lat: 53.1, lon: -57.7 },
+    { type: 'region', code: 'CA.NS', name: 'Nova Scotia/Maritimes', lat: 44.7, lon: -63.6 },
     { type: 'region', code: 'CA.QC', name: 'Quebec', lat: 52.9, lon: -73.5 },
+    { type: 'region', code: 'CA.ON', name: 'Ontario', lat: 51.2, lon: -85.3 },
+    { type: 'region', code: 'CA.MB', name: 'Manitoba', lat: 53.7, lon: -98.8 },
+    { type: 'region', code: 'CA.AB', name: 'Alberta', lat: 53.9, lon: -116.5 },
+    { type: 'region', code: 'CA.BC', name: 'British Columbia', lat: 53.7, lon: -127.6 },
 
     // --- BRASILIEN ---
     { type: 'region', code: 'BR.SP', name: 'São Paulo', lat: -23.5, lon: -46.6 },
