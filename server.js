@@ -8,11 +8,11 @@ app.use(cors());
 
 const WINDY_KEY = process.env.WINDY_API_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
 
-// KONFIGURATION
-const GOLDEN_HOUR_MIN = -8; 
-const GOLDEN_HOUR_MAX = 8;  
-const PRE_CHECK_WINDOW = 20; 
-const LIMIT_PER_REGION = 50; 
+// OPTIMIERTE KONFIGURATION
+const GOLDEN_HOUR_MIN = -9;  // Etwas tiefer gehen für kräftige Farben
+const GOLDEN_HOUR_MAX = 10;  // Etwas höher gehen, da Kanada/Mexiko oft flacheres Licht haben
+const PRE_CHECK_WINDOW = 35; // Deutlich vergrößert, damit Regionen nicht zu früh ignoriert werden
+const LIMIT_PER_REGION = 100; // Mehr Cams pro Region laden
 
 const TARGETS = [
     // --- AUSTRALIEN ---
@@ -141,7 +141,7 @@ const TARGETS = [
     { type: 'country', code: 'SN', name: 'Senegal', lat: 14.4, lon: -14.4 },
 
     // --- WEITERE LÄNDER ---
-    { type: 'country', code: 'NZ', name: 'Neuseeland', lat: -40.9, lon: 174.8 },
+    { type: 'country', code: 'NZ', name: 'Neuseeland', lat: -40.9, lon: 174.8 }
 ];
 
 async function fetchForTarget(target) {
@@ -164,7 +164,7 @@ app.get('/api/webcams', async (req, res) => {
             return alt >= -PRE_CHECK_WINDOW && alt <= PRE_CHECK_WINDOW;
         });
 
-        console.log(`🌍 Globaler Scan: ${activeTargets.length} Gebiete im Fenster.`);
+        console.log(`🌍 Scan: ${activeTargets.length} Gebiete aktiv.`);
         
         const results = await Promise.all(activeTargets.map(fetchForTarget));
         const allCams = results.flat();
@@ -174,27 +174,19 @@ app.get('/api/webcams', async (req, res) => {
             const sunPos = SunCalc.getPosition(now, w.location.latitude, w.location.longitude);
             const alt = sunPos.altitude * 180 / Math.PI;
             
-            // LOGGING: Hier siehst du genau, was mit den Kameras passiert
-            if (w.location.country === 'CA') {
-                console.log(`🇨🇦 Check Cam ${w.webcamId} in ${w.location.city || 'Canada'}: Sonnenhöhe ${alt.toFixed(2)}°`);
+            // SPEZIELLES LOGGING FÜR DEINE PROBLEMKINDER
+            if (['CA', 'MX', 'AE'].includes(w.location.country)) {
+                console.log(`🔍 [${w.location.country}] Cam ${w.webcamId} in ${w.location.city || 'Region'}: SunAlt ${alt.toFixed(1)}°`);
             }
 
             w.sunAlt = alt;
             w.isPremium = (alt >= -6 && alt <= 6);
             
-            const isMatch = alt >= GOLDEN_HOUR_MIN && alt <= GOLDEN_HOUR_MAX;
-            
-            if (w.location.country === 'CA' && !isMatch) {
-                console.log(`   -> ❌ Aussortiert (nicht im Bereich ${GOLDEN_HOUR_MIN}° bis ${GOLDEN_HOUR_MAX}°)`);
-            } else if (w.location.country === 'CA') {
-                console.log(`   -> ✅ Treffer!`);
-            }
-
-            return isMatch;
+            return alt >= GOLDEN_HOUR_MIN && alt <= GOLDEN_HOUR_MAX;
         });
 
         const unique = Array.from(new Map(finalResults.map(c => [c.webcamId, c])).values());
-        console.log(`✅ ${unique.length} Webcams insgesamt in der Golden Hour gefunden.`);
+        console.log(`✅ ${unique.length} Cams gefunden.`);
 
         res.json({ status: "success", meta: { total: unique.length }, webcams: unique });
     } catch (error) {
@@ -203,4 +195,4 @@ app.get('/api/webcams', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Backend aktiv auf Port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Backend läuft auf Port ${PORT}`));
