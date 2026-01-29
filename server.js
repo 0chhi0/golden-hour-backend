@@ -8,158 +8,123 @@ app.use(cors());
 
 const WINDY_KEY = process.env.WINDY_API_KEY || process.env.WINDY_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
 
-// Golden Hour Definitionen
+// Konfiguration
 const GOLDEN_HOUR_MIN = -8;
 const GOLDEN_HOUR_MAX = 8;
-const PREMIUM_MIN = -6;
-const PREMIUM_MAX = 6;
-const PRE_CHECK_MIN = -12;
-const PRE_CHECK_MAX = 12;
-
-// Cache
-let webcamCache = [];
-let lastCacheUpdate = 0;
-const CACHE_DURATION = 10 * 60 * 1000;
+const PRE_CHECK_WINDOW = 12; // Vor-Check +/- 12 Grad
 
 // ========================================
-// ZIEL-DEFINITIONEN
+// DIE GLOBALE MASTER-LISTE (Alle Kontinente)
 // ========================================
 const TARGETS = [
-    { type: 'country', code: 'AT', name: 'Österreich', refLat: 47.5, refLon: 13.5 },
-    { type: 'country', code: 'CH', name: 'Schweiz', refLat: 46.8, refLon: 8.2 },
-    { type: 'country', code: 'DE', name: 'Deutschland', refLat: 51.0, refLon: 10.5 },
-    { type: 'country', code: 'FR', name: 'Frankreich', refLat: 46.6, refLon: 2.3 },
-    { type: 'country', code: 'IT', name: 'Italien', refLat: 42.8, refLon: 12.5 },
-    { type: 'country', code: 'ES', name: 'Spanien', refLat: 40.4, refLon: -3.7 },
-    { type: 'country', code: 'GB', name: 'Vereinigtes Königreich', refLat: 54.0, refLon: -2.5 },
-    { type: 'country', code: 'IE', name: 'Irland', refLat: 53.4, refLon: -8.0 },
-    { type: 'country', code: 'NO', name: 'Norwegen', refLat: 60.5, refLon: 8.5 },
-    { type: 'country', code: 'SE', name: 'Schweden', refLat: 60.1, refLon: 18.6 },
-    { type: 'country', code: 'FI', name: 'Finnland', refLat: 61.9, refLon: 25.7 },
-    { type: 'country', code: 'JP', name: 'Japan', refLat: 36.2, refLon: 138.3 },
-    { type: 'region', code: 'US.CA', name: 'Kalifornien', refLat: 36.7, refLon: -119.4 },
-    { type: 'region', code: 'US.NY', name: 'New York', refLat: 42.5, refLon: -75.5 },
-    { type: 'region', code: 'BR.SP', name: 'São Paulo', refLat: -23.5, refLon: -46.6 },
-    { type: 'region', code: 'AU.NSW', name: 'New South Wales', refLat: -32.0, refLon: 147.0 }
-    // ... Liste kann beliebig erweitert werden
+    // --- EUROPA ---
+    { type: 'country', code: 'AT', name: 'Österreich', lat: 47.5, lon: 13.5 },
+    { type: 'country', code: 'DE', name: 'Deutschland', lat: 51.0, lon: 10.5 },
+    { type: 'country', code: 'CH', name: 'Schweiz', lat: 46.8, lon: 8.2 },
+    { type: 'country', code: 'FR', name: 'Frankreich', lat: 46.6, lon: 2.3 },
+    { type: 'country', code: 'IT', name: 'Italien', lat: 42.8, lon: 12.5 },
+    { type: 'country', code: 'ES', name: 'Spanien', lat: 40.4, lon: -3.7 },
+    { type: 'country', code: 'GB', name: 'UK', lat: 54.0, lon: -2.5 },
+    { type: 'country', code: 'NO', name: 'Norwegen', lat: 60.5, lon: 8.5 },
+    { type: 'country', code: 'SE', name: 'Schweden', lat: 60.1, lon: 18.6 },
+    { type: 'country', code: 'FI', name: 'Finnland', lat: 61.9, lon: 25.7 },
+    { type: 'country', code: 'PL', name: 'Polen', lat: 51.9, lon: 19.1 },
+    { type: 'country', code: 'GR', name: 'Griechenland', lat: 39.1, lon: 21.8 },
+    { type: 'country', code: 'PT', name: 'Portugal', lat: 39.4, lon: -8.2 },
+    { type: 'country', code: 'IS', name: 'Island', lat: 64.9, lon: -18.0 },
+    { type: 'country', code: 'TR', name: 'Türkei', lat: 39.0, lon: 35.0 },
+
+    // --- NORDAMERIKA (Regionen wegen Zeitverschiebung) ---
+    { type: 'region', code: 'US.NY', name: 'USA Ost', lat: 40.7, lon: -74.0 },
+    { type: 'region', code: 'US.FL', name: 'USA Südost', lat: 27.6, lon: -81.5 },
+    { type: 'region', code: 'US.TX', name: 'USA Süd', lat: 31.0, lon: -100.0 },
+    { type: 'region', code: 'US.CO', name: 'USA Mitte', lat: 39.0, lon: -105.5 },
+    { type: 'region', code: 'US.CA', name: 'USA West', lat: 36.7, lon: -119.4 },
+    { type: 'region', code: 'US.AK', name: 'Alaska', lat: 64.0, lon: -152.0 },
+    { type: 'region', code: 'US.HI', name: 'Hawaii', lat: 21.3, lon: -157.8 },
+    { type: 'region', code: 'CA.ON', name: 'Kanada Ost', lat: 51.2, lon: -85.3 },
+    { type: 'region', code: 'CA.BC', name: 'Kanada West', lat: 53.7, lon: -127.6 },
+    { type: 'country', code: 'MX', name: 'Mexiko', lat: 23.6, lon: -102.5 },
+
+    // --- SÜDAMERIKA ---
+    { type: 'country', code: 'BR', name: 'Brasilien', lat: -14.2, lon: -51.9 },
+    { type: 'country', code: 'AR', name: 'Argentinien', lat: -38.4, lon: -63.6 },
+    { type: 'country', code: 'CL', name: 'Chile', lat: -35.7, lon: -71.5 },
+    { type: 'country', code: 'CO', name: 'Kolumbien', lat: 4.6, lon: -74.1 },
+    { type: 'country', code: 'PE', name: 'Peru', lat: -9.2, lon: -75.0 },
+
+    // --- ASIEN ---
+    { type: 'country', code: 'JP', name: 'Japan', lat: 36.2, lon: 138.3 },
+    { type: 'country', code: 'KR', name: 'Südkorea', lat: 35.9, lon: 127.8 },
+    { type: 'country', code: 'CN', name: 'China Ost', lat: 31.2, lon: 121.5 },
+    { type: 'country', code: 'TH', name: 'Thailand', lat: 15.9, lon: 100.9 },
+    { type: 'country', code: 'VN', name: 'Vietnam', lat: 14.1, lon: 108.3 },
+    { type: 'country', code: 'IN', name: 'Indien', lat: 20.6, lon: 78.9 },
+    { type: 'country', code: 'ID', name: 'Indonesien', lat: -0.8, lon: 113.9 },
+    { type: 'country', code: 'PH', name: 'Philippinen', lat: 12.9, lon: 121.8 },
+
+    // --- OZEANIEN ---
+    { type: 'region', code: 'AU.NSW', name: 'Australien Ost', lat: -32.0, lon: 147.0 },
+    { type: 'region', code: 'AU.WA', name: 'Australien West', lat: -26.0, lon: 121.0 },
+    { type: 'country', code: 'NZ', name: 'Neuseeland', lat: -40.9, lon: 174.9 },
+
+    // --- AFRIKA ---
+    { type: 'country', code: 'ZA', name: 'Südafrika', lat: -30.6, lon: 22.9 },
+    { type: 'country', code: 'EG', name: 'Ägypten', lat: 26.8, lon: 30.8 },
+    { type: 'country', code: 'MA', name: 'Marokko', lat: 31.8, lon: -7.1 },
+    { type: 'country', code: 'KE', name: 'Kenia', lat: -0.0, lon: 37.9 }
 ];
 
 // ========================================
-// HILFSFUNKTIONEN
+// LOGIK & API
 // ========================================
-function getSunAltitude(lat, lon, time) {
-    const sunPos = SunCalc.getPosition(time, lat, lon);
-    return sunPos.altitude * 180 / Math.PI;
-}
 
-// ========================================
-// API CALL MIT DEBUG-LOGS
-// ========================================
-async function fetchWebcamsForTarget(target, limit = 50) {
+async function fetchWebcamsForTarget(target) {
     const param = target.type === 'country' ? 'countries' : 'regions';
-    // Wichtig: include=location,images damit Daten für Filter vorhanden sind
-    const url = `https://api.windy.com/webcams/api/v3/webcams?${param}=${target.code}&limit=${limit}&include=location,images`;
+    const url = `https://api.windy.com/webcams/api/v3/webcams?${param}=${target.code}&limit=50&include=location,images`;
     
     try {
-        const response = await fetch(url, {
-            headers: { 'x-windy-api-key': WINDY_KEY }
-        });
-        
-        if (!response.ok) {
-            console.error(`  ❌ ${target.name}: HTTP ${response.status}`);
-            return [];
-        }
-
+        const response = await fetch(url, { headers: { 'x-windy-api-key': WINDY_KEY } });
         const data = await response.json();
-
-        // DEBUG LOG: Zeige die ersten 200 Zeichen der Antwort von UK
-        if (target.code === 'GB') {
-            console.log(`\n--- DEBUG START (GB) ---`);
-            console.log(`URL: ${url}`);
-            console.log(`Antwort-Keys: ${Object.keys(data).join(', ')}`);
-            if (data.result) console.log(`Keys in data.result: ${Object.keys(data.result).join(', ')}`);
-            console.log(`Vorschau: ${JSON.stringify(data).substring(0, 300)}...`);
-            console.log(`--- DEBUG ENDE ---\n`);
-        }
-
-        // Flexibler Pfad-Check
-        const webcams = data.webcams || data.result?.webcams || data.result || [];
-        return Array.isArray(webcams) ? webcams : [];
-
-    } catch (error) {
-        console.error(`  ❌ ${target.name} Fehler: ${error.message}`);
+        // Pfad-Korrektur basierend auf unserem Debug
+        return data.webcams || [];
+    } catch (e) {
         return [];
     }
 }
 
-// ========================================
-// HAUPT-SCANNER
-// ========================================
-async function fetchGoldenHourWebcams() {
+async function getGoldenHourWebcams() {
     const now = new Date();
-    console.log(`\n🔍 Scan gestartet: ${now.toISOString()}`);
-
-    // 1. Vor-Check
+    
+    // 1. Welche Gebiete sind gerade "dran"?
     const activeTargets = TARGETS.filter(t => {
-        const alt = getSunAltitude(t.refLat, t.refLon, now);
-        return alt >= PRE_CHECK_MIN && alt <= PRE_CHECK_MAX;
+        const sunPos = SunCalc.getPosition(now, t.lat, t.lon);
+        const alt = sunPos.altitude * 180 / Math.PI;
+        return alt >= -PRE_CHECK_WINDOW && alt <= PRE_CHECK_WINDOW;
     });
 
-    console.log(`📊 Aktive Ziele: ${activeTargets.length}/${TARGETS.length}`);
+    console.log(`\n🌍 Globaler Scan: ${activeTargets.length} Gebiete aktiv.`);
 
-    // 2. API Anfragen
-    const promises = activeTargets.map(t => fetchWebcamsForTarget(t));
-    const results = await Promise.all(promises);
-
-    const allWebcams = new Map();
-    results.forEach((webcams, idx) => {
-        const target = activeTargets[idx];
-        if (webcams && webcams.length > 0) {
-            console.log(`  ✅ ${target.name}: ${webcams.length} Cams empfangen`);
-            webcams.forEach(w => {
-                const id = w.webcamId || w.id;
-                if (id) allWebcams.set(id, w);
-            });
-        } else {
-            console.log(`  ⚪ ${target.name}: 0 Cams`);
-        }
+    // 2. Abfragen starten
+    const results = await Promise.all(activeTargets.map(t => fetchWebcamsForTarget(t)));
+    
+    // 3. Filtern & Zusammenführen
+    const allCams = results.flat();
+    const finalSelection = allCams.filter(w => {
+        if (!w.location) return false;
+        const sunPos = SunCalc.getPosition(now, w.location.latitude, w.location.longitude);
+        const alt = sunPos.altitude * 180 / Math.PI;
+        return alt >= GOLDEN_HOUR_MIN && alt <= GOLDEN_HOUR_MAX;
     });
 
-    // 3. Präzisions-Filter
-    const filtered = [];
-    allWebcams.forEach(w => {
-        if (!w.location) return; // Ohne Location kein SunCalc möglich
-        const alt = getSunAltitude(w.location.latitude, w.location.longitude, now);
-        if (alt >= GOLDEN_HOUR_MIN && alt <= GOLDEN_HOUR_MAX) {
-            w.sunAlt = alt;
-            w.isPremium = (alt >= PREMIUM_MIN && alt <= PREMIUM_MAX);
-            filtered.push(w);
-        }
-    });
-
-    console.log(`\n✨ Ergebnis: ${filtered.length} Webcams in der Golden Hour\n`);
-    webcamCache = filtered;
-    lastCacheUpdate = Date.now();
-    return filtered;
+    // Dubletten entfernen
+    return Array.from(new Map(finalSelection.map(c => [c.webcamId, c])).values());
 }
 
-// ========================================
-// ROUTES
-// ========================================
 app.get('/api/webcams', async (req, res) => {
-    try {
-        const cams = await fetchGoldenHourWebcams();
-        res.json({ webcams: cams, meta: { total: cams.length, time: new Date() } });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+    const cams = await getGoldenHourWebcams();
+    res.json({ webcams: cams, count: cams.length });
 });
-
-app.get('/', (req, res) => res.send("Golden Hour Backend aktiv. Nutze /api/webcams"));
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', async () => {
-    console.log(`Server läuft auf Port ${PORT}`);
-    // Initialer Scan beim Start
-    await fetchGoldenHourWebcams();
-});
+app.listen(PORT, '0.0.0.0', () => console.log(`Backend läuft auf Port ${PORT}`));
