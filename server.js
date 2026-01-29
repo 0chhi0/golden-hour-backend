@@ -9,10 +9,10 @@ app.use(cors());
 const WINDY_KEY = process.env.WINDY_API_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
 
 // OPTIMIERTE KONFIGURATION
-const GOLDEN_HOUR_MIN = -9;  // Etwas tiefer gehen für kräftige Farben
-const GOLDEN_HOUR_MAX = 10;  // Etwas höher gehen, da Kanada/Mexiko oft flacheres Licht haben
-const PRE_CHECK_WINDOW = 35; // Deutlich vergrößert, damit Regionen nicht zu früh ignoriert werden
-const LIMIT_PER_REGION = 100; // Mehr Cams pro Region laden
+const GOLDEN_HOUR_MIN = -12;  // Etwas tiefer gehen für kräftige Farben
+const GOLDEN_HOUR_MAX = 12;  // Etwas höher gehen, da Kanada/Mexiko oft flacheres Licht haben
+const PRE_CHECK_WINDOW = 45; // Deutlich vergrößert, damit Regionen nicht zu früh ignoriert werden
+const LIMIT_PER_REGION = 150; // Mehr Cams pro Region laden
 
 const TARGETS = [
     // --- AUSTRALIEN ---
