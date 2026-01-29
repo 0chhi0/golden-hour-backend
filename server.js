@@ -62,14 +62,20 @@ const TARGETS = [
     { type: 'region', code: 'US.TX', name: 'Texas', lat: 31.9, lon: -99.9 },
     { type: 'region', code: 'US.CO', name: 'Colorado', lat: 39.5, lon: -105.7 },
 
-    // --- KANADA (Vollständige Ost-West Abdeckung) ---
-    { type: 'region', code: 'CA.NL', name: 'Neufundland & Labrador', lat: 53.1, lon: -57.7 },
-    { type: 'region', code: 'CA.NS', name: 'Nova Scotia/Maritimes', lat: 44.7, lon: -63.6 },
+    // --- KANADA (Absolut vollständig: Alle 10 Provinzen + 3 Territorien) ---
+    { type: 'region', code: 'CA.NL', name: 'Newfoundland and Labrador', lat: 47.6, lon: -52.7 },
+    { type: 'region', code: 'CA.PE', name: 'Prince Edward Island', lat: 46.5, lon: -63.4 },
+    { type: 'region', code: 'CA.NS', name: 'Nova Scotia', lat: 44.7, lon: -63.6 },
+    { type: 'region', code: 'CA.NB', name: 'New Brunswick', lat: 46.6, lon: -66.6 },
     { type: 'region', code: 'CA.QC', name: 'Quebec', lat: 52.9, lon: -73.5 },
     { type: 'region', code: 'CA.ON', name: 'Ontario', lat: 51.2, lon: -85.3 },
     { type: 'region', code: 'CA.MB', name: 'Manitoba', lat: 53.7, lon: -98.8 },
+    { type: 'region', code: 'CA.SK', name: 'Saskatchewan', lat: 52.9, lon: -106.5 },
     { type: 'region', code: 'CA.AB', name: 'Alberta', lat: 53.9, lon: -116.5 },
     { type: 'region', code: 'CA.BC', name: 'British Columbia', lat: 53.7, lon: -127.6 },
+    { type: 'region', code: 'CA.YT', name: 'Yukon', lat: 63.6, lon: -135.8 },
+    { type: 'region', code: 'CA.NT', name: 'Northwest Territories', lat: 64.8, lon: -119.1 },
+    { type: 'region', code: 'CA.NU', name: 'Nunavut', lat: 70.3, lon: -92.2 }
 
     // --- BRASILIEN ---
     { type: 'region', code: 'BR.SP', name: 'São Paulo', lat: -23.5, lon: -46.6 },
