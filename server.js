@@ -9,8 +9,8 @@ app.use(cors());
 const WINDY_KEY = process.env.WINDY_API_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
 
 // KONFIGURATION FÜR MAXIMALE TREFFERQUOTE
-const GOLDEN_HOUR_MIN = -9; 
-const GOLDEN_HOUR_MAX = 9;  
+const GOLDEN_HOUR_MIN = -8; 
+const GOLDEN_HOUR_MAX = 8;  
 const PRE_CHECK_WINDOW = 20; // Größeres Fenster, damit keine Region zu früh abgeschaltet wird
 const LIMIT_PER_REGION = 50; 
 
