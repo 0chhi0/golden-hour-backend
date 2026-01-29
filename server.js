@@ -43,6 +43,10 @@ const TARGETS = [
     { type: 'country', code: 'SG', name: 'Singapur', lat: 1.3, lon: 103.8 },
     { type: 'country', code: 'TR', name: 'Türkei', lat: 38.9, lon: 35.2 },
     { type: 'country', code: 'AE', name: 'VAE', lat: 23.4, lon: 53.8 },
+    { type: 'country', code: 'PH', name: 'Philippinen', lat: 12.8, lon: 121.7 },
+    { type: 'country', code: 'MY', name: 'Malaysia', lat: 4.2, lon: 101.9 },
+    { type: 'country', code: 'TW', name: 'Taiwan', lat: 23.6, lon: 120.9 },
+    { type: 'country', code: 'LK', name: 'Sri Lanka', lat: 7.8, lon: 80.7 },
 
     // --- INDIEN (Nord, Süd, West, Ost) ---
     { type: 'region', code: 'IN.16', name: 'Maharashtra/West (Mumbai)', lat: 19.0, lon: 72.8 },
@@ -76,6 +80,12 @@ const TARGETS = [
     { type: 'region', code: 'CA.YT', name: 'Yukon', lat: 63.6, lon: -135.8 },
     { type: 'region', code: 'CA.NT', name: 'Northwest Territories', lat: 64.8, lon: -119.1 },
     { type: 'region', code: 'CA.NU', name: 'Nunavut', lat: 70.3, lon: -92.2 }
+  
+    // --- MITTELAMERIKA (Die Brücke zwischen Mexiko & Kolumbien) ---
+    { type: 'country', code: 'CR', name: 'Costa Rica', lat: 9.7, lon: -83.7 },
+    { type: 'country', code: 'PA', name: 'Panama', lat: 8.5, lon: -80.1 },
+    { type: 'country', code: 'CU', name: 'Kuba', lat: 21.5, lon: -77.7 },
+    { type: 'country', code: 'DO', name: 'Dominikanische Rep.', lat: 18.7, lon: -70.1 },
 
     // --- MEXIKO (Unterteilt für Karibik & Pazifik) ---
     { type: 'region', code: 'MX.ROO', name: 'Quintana Roo (Cancun)', lat: 19.1, lon: -87.5 },
