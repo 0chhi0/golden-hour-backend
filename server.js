@@ -167,7 +167,7 @@ const TARGETS = [
 ];
 
 async function fetchForTarget(target) {
-    const param = target.type === 'country' ? 'countries' : 'regions';
+    const param = target.type === 'country' ? 'countries' : 'region' ? 'regions';
     const url = `https://api.windy.com/webcams/api/v3/webcams?${param}=${target.code}&limit=${LIMIT_PER_REGION}&include=location,images,urls,player`;
     
     try {
