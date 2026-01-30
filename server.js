@@ -25,13 +25,19 @@ const TARGETS = [
     { type: 'region', code: 'AU.06', name: 'Tasmania', lat: -42.0, lon: 146.6 },
     { type: 'region', code: 'AU.01', name: 'Australian Capital Territory', lat: -35.3, lon: 149.1 },
 
-    // --- CHINA ---
-    { type: 'region', code: 'CN.22', name: 'Beijing/Ostchina', lat: 39.9, lon: 116.4 },
-    { type: 'region', code: 'CN.30', name: 'Guangdong/Südchina', lat: 23.1, lon: 113.2 },
-    { type: 'region', code: 'CN.13', name: 'Xinjiang/Westchina', lat: 43.8, lon: 87.6 },
-    { type: 'region', code: 'CN.14', name: 'Tibet', lat: 29.6, lon: 91.1 },
-    { type: 'region', code: 'CN.23', name: 'Shanghai Region', lat: 31.2, lon: 121.4 },
-    { type: 'region', code: 'CN.08', name: 'Heilongjiang/Nordost', lat: 45.7, lon: 126.6 },
+  // --- CHINA (Optimiert nach Hoppscotch-Test) ---
+    { type: 'region', code: 'CN.22', name: 'Beijing Region', lat: 39.9, lon: 116.4 },
+    { type: 'region', code: 'R913110', name: 'Hong Kong (Sonderzone)', lat: 22.3, lon: 114.2 },
+    { type: 'region', code: 'R1867188', name: 'Macau (Sonderzone)', lat: 22.2, lon: 113.5 },
+    { type: 'region', code: 'CN.30', name: 'Guangdong (Südchina)', lat: 23.1, lon: 113.2 },
+    { type: 'region', code: 'CN.08', name: 'Heilongjiang (Nordost)', lat: 45.8, lon: 126.6 },
+    { type: 'region', code: 'CN.13', name: 'Xinjiang (Westchina)', lat: 43.5, lon: 87.2 },
+    { type: 'region', code: 'CN.06', name: 'Qinghai', lat: 37.3, lon: 102.0 },
+    { type: 'region', code: 'CN.32', name: 'Sichuan (Chengdu)', lat: 30.6, lon: 104.1 },
+    { type: 'region', code: 'CN.04', name: 'Jiangsu (Nanjing)', lat: 32.1, lon: 118.8 },
+    { type: 'region', code: 'CN.33', name: 'Chongqing', lat: 29.6, lon: 106.5 },
+    { type: 'region', code: 'CN.07', name: 'Fujian', lat: 27.6, lon: 117.9 },
+    { type: 'region', code: 'CN.10', name: 'Hebei', lat: 38.3, lon: 116.8 },
     
     // --- ASIEN ---
     { type: 'country', code: 'JP', name: 'Japan', lat: 36.2, lon: 138.2 },
