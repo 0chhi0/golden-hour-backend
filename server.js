@@ -8,8 +8,8 @@ app.use(cors());
 
 const WINDY_KEY = process.env.WINDY_API_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
 
-const GOLDEN_HOUR_MIN = -8;
-const GOLDEN_HOUR_MAX = 8;
+const GOLDEN_HOUR_MIN = -15;
+const GOLDEN_HOUR_MAX = 15;
 const PRE_CHECK_WINDOW = 50; 
 const LIMIT_PER_REGION = 50;
 
