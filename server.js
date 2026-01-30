@@ -14,7 +14,7 @@ const PRE_CHECK_WINDOW = 50;
 const LIMIT_PER_REGION = 50;
 
 const TARGETS = [
-     // --- AUSTRALIEN (Rein Numerische Windy/ISO-Codes) ---
+    // --- AUSTRALIEN (Rein Numerische Windy/ISO-Codes) ---
     { type: 'region', code: 'AU.08', name: 'Western Australia', lat: -25.0, lon: 122.0 },
     { type: 'region', code: 'AU.03', name: 'Northern Territory', lat: -19.4, lon: 133.3 },
     { type: 'region', code: 'AU.05', name: 'South Australia', lat: -30.0, lon: 135.0 },
@@ -172,74 +172,55 @@ async function fetchForTarget(target) {
     try {
         const response = await fetch(url, { headers: { 'x-windy-api-key': WINDY_KEY } });
         const data = await response.json();
-        return { 
-            code: target.code, 
-            name: target.name, 
-            lat: target.lat, 
-            lon: target.lon, 
-            webcams: data.webcams || [] 
-        };
-    } catch (e) { 
-        return { code: target.code, name: target.name, lat: target.lat, lon: target.lon, webcams: [] }; 
-    }
+        return data.webcams || [];
+    } catch (e) { return []; }
 }
 
 app.get('/api/webcams', async (req, res) => {
     try {
         const now = new Date();
-        
-        // 1. Pre-Check: Welche Regionen kommen theoretisch in Frage?
         const activeTargets = TARGETS.filter(t => {
             const sunPos = SunCalc.getPosition(now, t.lat, t.lon);
             const alt = sunPos.altitude * 180 / Math.PI;
             return alt >= -PRE_CHECK_WINDOW && alt <= PRE_CHECK_WINDOW;
         });
 
-        // 2. Windy Abfrage
-        const results = await Promise.all(activeTargets.map(fetchForTarget));
-        
         const debugInfo = [];
-        const finalCams = [];
+        const allFetchedCams = [];
 
-        // 3. Verarbeitung & Echte Zählung
-        results.forEach(resObj => {
-            const sunPosRef = SunCalc.getPosition(now, resObj.lat, resObj.lon);
+        // Jedes Target einzeln abarbeiten für genaue Statistik
+        for (const target of activeTargets) {
+            const cams = await fetchForTarget(target);
+            const sunPosRef = SunCalc.getPosition(now, target.lat, target.lon);
             const altRef = sunPosRef.altitude * 180 / Math.PI;
 
-            let camsInGoldenHour = 0;
-
-            resObj.webcams.forEach(w => {
-                if (w.location) {
-                    const s = SunCalc.getPosition(now, w.location.latitude, w.location.longitude);
-                    const a = s.altitude * 180 / Math.PI;
-                    
-                    if (a >= GOLDEN_HOUR_MIN && a <= GOLDEN_HOUR_MAX) {
-                        w.sunAlt = a;
-                        w.isPremium = (a >= -6 && a <= 6);
-                        finalCams.push(w);
-                        camsInGoldenHour++;
-                    }
-                }
+            const filtered = cams.filter(w => {
+                if (!w.location) return false;
+                const s = SunCalc.getPosition(now, w.location.latitude, w.location.longitude);
+                const a = s.altitude * 180 / Math.PI;
+                w.sunAlt = a;
+                w.isPremium = (a >= -6 && a <= 6);
+                return a >= GOLDEN_HOUR_MIN && a <= GOLDEN_HOUR_MAX;
             });
 
-            // Hier wird die REALE Menge geloggt
+            // ECHTE WERTE SPEICHERN
             debugInfo.push({
-                name: resObj.name,
-                sunAlt: Number(altRef.toFixed(1)),
-                camsFetched: resObj.webcams.length, // Reale Menge von Windy (z.B. 25)
-                camsFinal: camsInGoldenHour,        // Wie viele den Filter bestanden haben
-                preCheck: true
+                name: target.name,
+                sunAlt: altRef.toFixed(1),
+                fetched: cams.length, // Hier steht dann z.B. 25 für Nunavut
+                inGH: filtered.length
             });
-        });
 
-        // Unique Filter (falls Kameras in zwei Regionen auftauchen)
-        const unique = Array.from(new Map(finalCams.map(c => [c.webcamId, c])).values());
+            allFetchedCams.push(...filtered);
+        }
+
+        const unique = Array.from(new Map(allFetchedCams.map(c => [c.webcamId, c])).values());
 
         res.json({ 
             status: "success", 
             meta: { total: unique.length }, 
-            webcams: unique,
-            debug: debugInfo 
+            debug: debugInfo, 
+            webcams: unique 
         });
     } catch (error) {
         res.status(500).json({ status: "error", message: error.message });
