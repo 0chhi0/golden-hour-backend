@@ -11,7 +11,7 @@ const WINDY_KEY = process.env.WINDY_API_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL
 // OPTIMIERTE KONFIGURATION
 const GOLDEN_HOUR_MIN = -8;  // Etwas tiefer gehen für kräftige Farben
 const GOLDEN_HOUR_MAX = 8;  // Etwas höher gehen, da Kanada/Mexiko oft flacheres Licht haben
-const PRE_CHECK_WINDOW = 25; // Deutlich vergrößert, damit Regionen nicht zu früh ignoriert werden
+const PRE_CHECK_WINDOW = 50; // Deutlich vergrößert, damit Regionen nicht zu früh ignoriert werden
 const LIMIT_PER_REGION = 50; // Mehr Cams pro Region laden
 
 const TARGETS = [
@@ -108,7 +108,7 @@ const TARGETS = [
     { type: 'region', code: 'BR.04', name: 'Amazonas', lat: -3.4, lon: -60.0 },
     { type: 'region', code: 'BR.05', name: 'Bahia (Nordost)', lat: -12.9, lon: -38.5 },
     { type: 'region', code: 'BR.13', name: 'Minas Gerais', lat: -18.5, lon: -44.5 },
-    { type: 'region', code: 'BR.16', name: 'Paraná (Süden)', lat: -24.8, lon: -51.3 }
+    { type: 'region', code: 'BR.16', name: 'Paraná (Süden)', lat: -24.8, lon: -51.3 },
         
     // --- SÜDAMERIKA ---
     { type: 'country', code: 'AR', name: 'Argentinien', lat: -38.4, lon: -63.6 },
@@ -129,7 +129,7 @@ const TARGETS = [
     { type: 'region', code: 'RU.22', name: 'Irkutsk (Baikalsee)', lat: 52.3, lon: 104.3 },
     { type: 'region', code: 'RU.30', name: 'Kamtschatka (Fernost)', lat: 53.0, lon: 158.6 },
     { type: 'region', code: 'RU.20', name: 'Region Chabarowsk', lat: 48.5, lon: 135.1 },
-    { type: 'region', code: 'RU.59', name: 'Region Primorje (Wladiwostok)', lat: 43.1, lon: 131.9 }
+    { type: 'region', code: 'RU.59', name: 'Region Primorje (Wladiwostok)', lat: 43.1, lon: 131.9 },
 
     // --- EUROPA ---
     { type: 'country', code: 'DE', name: 'Deutschland', lat: 51.1, lon: 10.4 },
