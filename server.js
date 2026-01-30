@@ -8,13 +8,13 @@ app.use(cors());
 
 const WINDY_KEY = process.env.WINDY_API_KEY || 'z56DtDaWSj3HXsPI9PiBVnWTkf5nUdtL';
 
-const GOLDEN_HOUR_MIN = -15;
-const GOLDEN_HOUR_MAX = 15;
+const GOLDEN_HOUR_MIN = -8;
+const GOLDEN_HOUR_MAX = 8;
 const PRE_CHECK_WINDOW = 50; 
 const LIMIT_PER_REGION = 50;
 
 const TARGETS = [
-    // --- AUSTRALIEN (Rein Numerische Windy/ISO-Codes) ---
+     // --- AUSTRALIEN (Rein Numerische Windy/ISO-Codes) ---
     { type: 'region', code: 'AU.08', name: 'Western Australia', lat: -25.0, lon: 122.0 },
     { type: 'region', code: 'AU.03', name: 'Northern Territory', lat: -19.4, lon: 133.3 },
     { type: 'region', code: 'AU.05', name: 'South Australia', lat: -30.0, lon: 135.0 },
@@ -163,6 +163,7 @@ const TARGETS = [
     // --- WEITERE LÄNDER ---
     { type: 'country', code: 'NZ', name: 'Neuseeland', lat: -40.9, lon: 174.8 },
     { type: 'country', code: 'GL', name: 'Grönland', lat: 71.7, lon: -42.6 },
+
 ];
 
 async function fetchForTarget(target) {
@@ -171,68 +172,68 @@ async function fetchForTarget(target) {
     try {
         const response = await fetch(url, { headers: { 'x-windy-api-key': WINDY_KEY } });
         const data = await response.json();
-        return data.webcams || [];
-    } catch (e) { return []; }
+        return { 
+            code: target.code, 
+            name: target.name, 
+            lat: target.lat, 
+            lon: target.lon, 
+            webcams: data.webcams || [] 
+        };
+    } catch (e) { 
+        return { code: target.code, name: target.name, lat: target.lat, lon: target.lon, webcams: [] }; 
+    }
 }
 
 app.get('/api/webcams', async (req, res) => {
     try {
         const now = new Date();
-        const debugInfo = [];
-
-        // 1. PRE-CHECK Filter & Debug Init
+        
+        // 1. Pre-Check: Welche Regionen kommen theoretisch in Frage?
         const activeTargets = TARGETS.filter(t => {
             const sunPos = SunCalc.getPosition(now, t.lat, t.lon);
             const alt = sunPos.altitude * 180 / Math.PI;
-            const active = alt >= -PRE_CHECK_WINDOW && alt <= PRE_CHECK_WINDOW;
-
-            debugInfo.push({
-                code: t.code,
-                name: t.name,
-                sunAlt: Number(alt.toFixed(1)),
-                preCheck: active,
-                camsFetched: 0,
-                camsFinal: 0,
-                lat: t.lat,
-                lon: t.lon
-            });
-            return active;
+            return alt >= -PRE_CHECK_WINDOW && alt <= PRE_CHECK_WINDOW;
         });
 
-        // 2. Windy Fetch
+        // 2. Windy Abfrage
         const results = await Promise.all(activeTargets.map(fetchForTarget));
         
-        // Debug Mapping: Wieviele Cams pro Region kamen zurück?
-        results.forEach((cams, i) => {
-            const dbg = debugInfo.find(d => d.code === activeTargets[i].code);
-            if (dbg) dbg.camsFetched = cams.length;
+        const debugInfo = [];
+        const finalCams = [];
+
+        // 3. Verarbeitung & Echte Zählung
+        results.forEach(resObj => {
+            const sunPosRef = SunCalc.getPosition(now, resObj.lat, resObj.lon);
+            const altRef = sunPosRef.altitude * 180 / Math.PI;
+
+            let camsInGoldenHour = 0;
+
+            resObj.webcams.forEach(w => {
+                if (w.location) {
+                    const s = SunCalc.getPosition(now, w.location.latitude, w.location.longitude);
+                    const a = s.altitude * 180 / Math.PI;
+                    
+                    if (a >= GOLDEN_HOUR_MIN && a <= GOLDEN_HOUR_MAX) {
+                        w.sunAlt = a;
+                        w.isPremium = (a >= -6 && a <= 6);
+                        finalCams.push(w);
+                        camsInGoldenHour++;
+                    }
+                }
+            });
+
+            // Hier wird die REALE Menge geloggt
+            debugInfo.push({
+                name: resObj.name,
+                sunAlt: Number(altRef.toFixed(1)),
+                camsFetched: resObj.webcams.length, // Reale Menge von Windy (z.B. 25)
+                camsFinal: camsInGoldenHour,        // Wie viele den Filter bestanden haben
+                preCheck: true
+            });
         });
 
-        const allCams = results.flat();
-
-        // 3. Golden Hour Filter
-        const finalResults = allCams.filter(w => {
-            if (!w.location) return false;
-            const sunPos = SunCalc.getPosition(now, w.location.latitude, w.location.longitude);
-            const alt = sunPos.altitude * 180 / Math.PI;
-            
-            w.sunAlt = alt;
-            w.isPremium = (alt >= -6 && alt <= 6);
-            
-            const isMatch = alt >= GOLDEN_HOUR_MIN && alt <= GOLDEN_HOUR_MAX;
-            
-            if (isMatch) {
-                // Debug Mapping: Zähle gefundene Cams zur Region
-                const dbg = debugInfo.find(d => 
-                    d.code === w.location.region || d.code === w.location.country
-                );
-                if (dbg) dbg.camsFinal++;
-            }
-
-            return isMatch;
-        });
-
-        const unique = Array.from(new Map(finalResults.map(c => [c.webcamId, c])).values());
+        // Unique Filter (falls Kameras in zwei Regionen auftauchen)
+        const unique = Array.from(new Map(finalCams.map(c => [c.webcamId, c])).values());
 
         res.json({ 
             status: "success", 
